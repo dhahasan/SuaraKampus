@@ -1,0 +1,311 @@
+Buatkan aplikasi mobile Flutter (Dart) bernama "SuaraKampus", portal aspirasi
+dan menfess mahasiswa dengan moderasi admin. Tampilan HARUS persis mengikuti
+desain Figma yang saya deskripsikan di bawah. Gunakan Material 3, null-safety,
+dan Dart 3.x.
+
+══════════════════════════════════════════
+1. TECH STACK & ARSITEKTUR
+══════════════════════════════════════════
+- Flutter 3.x, Dart 3.x
+- State management: Riverpod (flutter_riverpod + riverpod_annotation)
+- Routing: go_router (dengan ShellRoute untuk bottom navigation)
+- Model: freezed + json_serializable
+- Backend: Firebase (Auth, Firestore, Storage) — buat abstraction repository
+  agar mudah diganti, sediakan mock data lokal sebagai default
+- Package tambahan: google_fonts, flutter_svg, image_picker, cached_network_image,
+  fl_chart (atau custom painter) untuk grafik, intl, shimmer
+- Struktur folder (feature-first):
+  lib/
+   ├─ core/ (theme, constants, widgets reusable, utils, router)
+   ├─ features/
+   │   ├─ splash/
+   │   ├─ auth/ (login, register, verifikasi akun/KTM)
+   │   ├─ feed/ (feed, detail, laporkan)
+   │   ├─ compose/ (tulis menfess/aduan)
+   │   ├─ riwayat/
+   │   ├─ profil/
+   │   └─ admin/ (moderasi, tindak lanjut, antrean instagram, statistik)
+   └─ main.dart
+
+══════════════════════════════════════════
+2. DESIGN SYSTEM (WAJIB KONSISTEN)
+══════════════════════════════════════════
+Font: Plus Jakarta Sans (google_fonts). Ukuran: judul layar 16-18 bold,
+judul kartu 13-14 semibold, body 11-12 regular, caption/badge 9-10.
+
+Warna (definisikan di AppColors):
+- primary / teal tua: #0E6B85 (tombol utama, ikon aktif, header splash)
+- primaryDark: #0A5368
+- background layar: #F3F9FC (biru sangat muda)
+- surface kartu: #FFFFFF, border #D9E8EF, radius 12-14, shadow lembut
+- infoBg: #E6F3F8 (kotak info biru muda)
+- warningBg: #FFF6DC, warningBorder: #F5D98A, warningText: #8A6A00
+- dangerRed: #D32F2F (tombol Hapus, badge URGENT, "Tolak" outline merah)
+- dangerBg: #FDECEC
+- success hijau: #2E9B5B, successBg: #E3F5EA (badge "Selesai", "Kecepatan Baik")
+- orange/amber badge "Menunggu": #F59E0B dengan bg #FFF1D6
+- teks utama: #12303B, teks sekunder: #6B8794
+- Badge/chip: pill, radius 20, padding horizontal 8, vertikal 2-3.
+- Tombol: tinggi 40-44, radius 10-12. Primary = filled teal; secondary =
+  filled biru muda (#DCEEF5) teks teal; outline merah untuk aksi negatif.
+- Input: border #D9E8EF radius 8, fill putih, label kecil di atas.
+- Bottom nav: 4 item, ikon + label kecil, aktif teal, tidak aktif abu.
+- Status bar jam "09:41" hanya di mockup, JANGAN ditampilkan di app asli.
+
+Buat widget reusable: AppButton (primary/secondary/danger/outline),
+AppBadge, AppCard, InfoBanner (info/warning/danger), CategoryChip,
+SectionHeader, AppTextField, StatCard, ProgressBarRow, BottomNavShell.
+
+══════════════════════════════════════════
+3. ALUR PENGGUNA (MAHASISWA) — 10 LAYAR
+══════════════════════════════════════════
+
+[3.1] SPLASH ("iPhone 17 - 1")
+- Background penuh teal #0E6B85.
+- Tengah: ikon logo kotak putih rounded (ikon bubble chat dengan tanda "+"
+  / suara) ukuran ±72.
+- Teks "SuaraKampus" putih bold 22, tagline "Suarakan keluhanmu, tanpa nama."
+  putih 70% opacity 11.
+- Bawah: pill transparan outline putih berisi ikon + teks
+  "Privasi Mahasiswa Terjaga Aman" ukuran 9.
+- Auto navigasi 2 detik ke Login (atau Feed jika sudah login).
+
+[3.2] LOGIN VARIAN GLASS ("login")
+- Background gradasi abu-biru muda, kartu glassmorphism putih semi-transparan
+  di tengah (radius 24, blur, shadow).
+- Ikon bubble di atas kartu dalam lingkaran. Judul "MASUK", sub
+  "Portal Aspirasi Mahasiswa".
+- Field: "EMAIL KAMPUS" (placeholder mahasiswa@kampus.ac.id),
+  "KATA SANDI" (obscure + toggle mata). Link "Lupa kata sandi?" kanan.
+- Tombol "MASUK" teal lebar penuh dengan efek elevasi.
+- "Belum punya akun? Daftar" (Daftar bold teal).
+- Banner bawah: "Privasi Terjamin: Identitasmu disamarkan dan tidak
+  dipublikasikan."
+
+[3.3] DAFTAR ("Daftar")
+- Header kiri: logo kecil + "SuaraKampus" + sub "Portal Aspirasi Mahasiswa".
+- Segmented tab 2 sisi: "Masuk" | "Daftar" (Daftar aktif, putih berborder).
+- Field: "Email/Nomor Kampus", "Kata Sandi", "Ulangi Kata Sandi" (dengan
+  toggle mata), validasi realtime (format email .ac.id, min 8 karakter,
+  sama dengan konfirmasi).
+- Checkbox: "Saya mahasiswa kampus ini dan setuju dengan aturan penggunaan".
+- Tombol "Daftar" teal penuh.
+- Banner info kecil: "Kami kirim tautan verifikasi ke email kampusmu."
+- Footer: "Sudah punya akun? Masuk di sini".
+
+[3.4] MASUK ("masuk")
+- Layout sama dengan Daftar tetapi tab "Masuk" aktif.
+- Field: Email Kampus, Kata Sandi (toggle mata), link "Lupa sandi?" kanan.
+- Tombol "Masuk" teal.
+- Banner "Privasi Terjaga: Namamu tidak ditampilkan di publik. Admin hanya
+  melihat email yang kamu daftarkan."
+- Footer: "Belum punya akun? Daftar sekarang".
+
+[3.5] VERIFIKASI AKUN – DITOLAK ("Verifikasi Akun" pertama)
+- AppBar: judul "Verifikasi Akun" kiri + badge merah "Ditolak" kanan,
+  sub "Lengkapi pengunggah akun mahasiswa".
+- Kartu merah muda: "Verifikasi Berhasil/Ditolak — foto KTM kurang jelas,
+  silakan ulangi pengunggahan."
+- Stepper vertikal: ✔ "Email terverifikasi" (hijau), ✖/● "Unggah Foto KTM
+  (Perlu Revisi)" merah.
+- Kotak dashed besar dengan ikon kamera: "Ketuk untuk mengunggah foto KTM
+  baru" + helper text.
+- Tombol "Unggah ulang" teal di bawah (sticky).
+
+[3.6] VERIFIKASI AKUN – MENUNGGU ("Verifikasi Akun" kedua)
+- Badge kuning "Menunggu" di header.
+- Stepper: ✔ Email terverifikasi; ② "Unggah Foto KTM" aktif (teal).
+- Kotak dashed upload foto KTM (image_picker kamera/galeri) dengan preview
+  setelah dipilih.
+- Kartu info "Kebijakan Foto KTM": KTM hanya dilihat admin untuk verifikasi
+  dan dihapus setelah proses selesai.
+- Tombol "Kirim KTM" teal sticky di bawah.
+
+[3.7] TULIS ADUAN / TULIS MENFESS — varian 1 ("Tulis menfess...")
+- AppBar: ikon megafon + "Tulis Aduan" kiri, avatar bulat kanan.
+- Judul "Tulis Menfess" + sub; badge merah kanan "Dikirim 6 tersisa".
+- Kartu "Kuota Bulan Ini Habis" (info): ikon, teks penjelasan kuota,
+  progress bar merah penuh, label "Reset dalam X hari".
+- Section "Kategori Aspirasi": chip (Fasilitas Kampus, Akademik, Saran,
+  Keuangan) — state disabled saat kuota habis.
+- Textarea "Pesan Menfess" (counter karakter 0/500) disabled + tombol
+  kecil "Input Evaluasi".
+- "Lampiran Bukti (Opsional)": area dashed upload.
+- Toggle "Posting sebagai Anonim" (switch).
+- Tombol kirim disabled abu saat kuota habis.
+
+[3.8] TULIS MENFESS — varian 2 ("Tulis menfess")
+- AppBar sama. Kartu hijau kecil "Sisa 3 dari 5 kuota bulan ini".
+- "Pilih Kategori": chip row horizontal scroll — Akademik, ✔ Sarpras
+  (terpilih teal), Keuangan, Layanan IT.
+- Field "Keluhan atau Aspirasi": textarea berisi contoh teks, counter
+  "88/500".
+- "Lampiran Bukti (Opsional)": kotak dashed berikon gambar,
+  "Tambah foto bukti (opsional)" + "JPG/PNG, maks 5MB".
+- Banner kuning warning: "Hindari menyebut nama dosen, staf, atau civitas
+  yang bisa mengidentifikasi."
+- Checkbox: "Boleh ditampilkan di Instagram @suarakampus_official".
+- Tombol "Kirim menfess" teal dengan ikon kirim, sticky bawah.
+
+[3.9] FEED ("iPhone 17 - 2" — empty state)
+- AppBar: ikon + "Feed", badge "Beranda", avatar kanan.
+- Header "SuaraKampus" + sub "Suarakan keluhanmu, tanpa nama."
+- Tab chip horizontal: Semua, Akademik, ✔ Sarpras (aktif), Keuangan, ...
+- Empty state: ikon bubble di lingkaran biru muda, judul "Belum ada menfess
+  di kategori ini", sub "Jadilah yang pertama menyuarakan keluhan atau
+  aspirasi terkait fasilitas kampus.", tombol "Tulis menfess pertama".
+- Kartu info hijau "Privasi Dijamin Aman".
+- Section "Rekomendasi Topik Sarpras" + link "Lihat Semua": 2 kartu kecil
+  (AC Ruang Kuliah, Kerapian Proyektor) dengan jumlah laporan.
+
+[3.10] LAPORKAN MENFESS — bottom sheet ("iPhone 17 - 3")
+- Feed diredupkan di belakang; modal bottom sheet putih radius atas 20,
+  tombol X kanan.
+- Judul "Laporkan menfess" (ikon bendera merah) + sub penjelasan.
+- Radio list opsi (kotak border): "Kata kasar atau provokatif",
+  ✔ "Menyebut nama orang / civitas" (terpilih, border teal),
+  "Informasi palsu atau hoaks", "Bukan pengaduan layanan fasilitas",
+  "Lainnya".
+- Banner info: "Laporan akan ditinjau admin, identitasmu tetap rahasia."
+- Tombol "Kirim laporan" teal + tombol teks "Batal".
+
+[3.11] FEED BERISI ("iPhone 17 - 4")
+- Kartu summary atas: "SuaraKampus", "Kuota bulan ini 3 dari 5 tersisa",
+  sub tahun ajaran.
+- Chip kategori: Semua (aktif), Akademik, Sarpras, Keuangan.
+- Daftar kartu menfess: baris atas = kategori (ikon + label kecil, mis.
+  "Layanan IT", "Sarpras dan prasarana", "Keuangan") + badge status
+  ("Menunggu", "Selesai" hijau, "Diproses"), isi teks 2-3 baris, footer:
+  tombol "Saya juga [angka]" (bantuan/dukung) dan link "Laporkan" kanan.
+- Pull-to-refresh, infinite scroll, shimmer loading.
+
+[3.12] BOTTOM NAV MAHASISWA
+- 4 tab: Feed, Tulis, Riwayat, Profil (ikon outline, aktif teal).
+- Layar Riwayat: list menfess milik user + status (Menunggu/Disetujui/
+  Ditolak/Diproses/Selesai) + alasan penolakan. Layar Profil: info akun
+  (email tersamarkan), status verifikasi, kuota, tombol keluar.
+
+══════════════════════════════════════════
+4. PANEL ADMIN — 4 LAYAR (Bottom nav: Moderasi, Tindak Lanjut,
+   Antrean IG, Statistik)
+══════════════════════════════════════════
+Header bersama: "Admin SuaraKampus" bold + sub "Panel Moderasi & Pengelolaan",
+ikon pengaturan + avatar bulat teal kanan atas. Akses hanya untuk role=admin.
+
+[4.1] MODERASI (Layar 17)
+- Kartu ringkasan: "Menunggu Kurasi" angka besar "14 menfess baru" +
+  badge merah "Laporan Masuk — URGENT 3 perlu telaah".
+- Tab chip: Semua (14), Perlu Sensor, Disporkan Civitas (3).
+- Banner biru "Mode Tinjau Cepat Aktif — Verifikasi masukan berdasarkan
+  parameter standar kampus" + tombol "Pilih Semua".
+- Kartu menfess (loop):
+  * Header: badge kategori (Sarpras/Akademik/Fasilitas) + ID "#MNF-1042 ·
+    12 mnt lalu" + badge status ("Menunggu" / "Dilaporkan 3×" merah).
+  * Isi teks menfess.
+  * Lampiran: thumbnail foto + nama file + tombol "Perbesar Gambar".
+  * Banner kuning "Alasan Pelaporan Civitas: ..." (jika dilaporkan).
+  * Metrik kecil: "3x2 dirinat", "28 respon", "Melanggar Pasal 4.2".
+  * Tombol aksi: [Loloskan (Publish) — teal] [Tolak — outline merah]
+    + [Sensor Teks Menfess — secondary]; untuk laporan: [Hapus & Sanksi
+    — merah solid] [Abaikan Laporan] + [Edit & Samarkan Inisial Dosen].
+  * Varian: [Loloskan Segera] [Tahan Dulu].
+- Footer: ikon jempol "Tersisa 12 Menfess di Antrean — Terus jaga ekosistem
+  aspirasi kampus tetap tertib, bermartabat, dan solutif."
+
+[4.2] TINDAK LANJUT (Layar 18)
+- Header kartu: "Disposisi & Eskalasi Kampus" + badge bulan "Oktober 2024".
+- 3 stat: 8 Diteruskan ke Unit, 5 Menunggu Respons, 42 Selesai Bulan Ini.
+- Bar SLA: "Target SLA Resolusi Kampus: 85% Tepat Waktu" + link "Detail".
+- Tab: Semua Unit (aktif), Biro Sarpras (4), Bagian Keuangan (2).
+- Kartu unit (Biro Sarana & Prasarana, Layanan IT & Jaringan):
+  ikon, nama unit, badge ("Diproses" / "Menunggu Respons"), ID tiket,
+  banner kuning/ merah "Estimasi respons tersisa: 2 hari kerja" atau
+  "Telah melebihi 24 jam batas", kutipan menfess, kotak "Jejak Disposisi &
+  Korespondensi" (timeline email/webhook), tombol "Kirim Pengingat" dan
+  "Perbarui Status Selesai"; untuk overdue: "Eskalasikan Pimpinan" (merah)
+  + "Catatan Internal".
+- Kartu "Tindakan Cepat Birokrasi": "Buat Surat Disposisi", "Ekspor Rekap
+  PDF" (2 tombol grid dengan ikon).
+- Teks kecil "Sinkronisasi SIPAS Kampus aktif • Realtime Update".
+
+[4.3] ANTREAN INSTAGRAM (Layar 19)
+- Header: "Social Automation" label kecil + judul "Antrean Instagram",
+  badge "Slot Hari ini 3/4", badge "Template V2".
+- Kartu akun: avatar, "@suarakampus_official" centang verifikasi,
+  "Terkoneksi Otomatis", jadwal "Jadwal Unggahan Terdekat: Hari ini,
+  19:00 WIB (Slot Sore)", "32 mnt lagi", tombol refresh.
+- Tab: Antrean Terjadwal (6), Draft Desain Feed, Sudah Terbit.
+- Banner: "Hanya aspirasi berstatus Disetujui dengan opsi 'Boleh tampil
+  di IG' yang masuk kurasi antrean feed."
+- Kartu terjadwal: badge "Terjadwal #83", jam, badge "Carousel (3/3)",
+  preview slide Instagram (gambar placeholder + hashtag + kutipan menfess
+  dalam tipografi besar), tombol "Pratinjau Feed", "Ganti Desain",
+  caption "Edit".
+- Kartu terjadwal #84 dengan badge waktu "Besok 12:00 WIB", preview teks,
+  toggle "Publikasikan Otomatis — Auto-post saat jam tiba", ikon edit &
+  hapus.
+- Item bawah "Jadwal Bus Kampus Malam" + tombol "Detail".
+- Tombol sticky teal lebar "Generate Feed Batch Hari Ini".
+
+[4.4] STATISTIK & METRIK (Layar 20)
+- Header "Ringkasan Analitik" + dropdown "Bulan Ini (Oktober)",
+  teks "Sinkronisasi data otomatis per 15 mnt • 10:42 WIB".
+- Grid 2×2 StatCard: Total Aspirasi 284 (+18% bln lalu), Diselesaikan
+  Unit 89.2% (Tingkat kinerja efektif), Rata-rata Respon 1.4 hari
+  (Kecepatan unit baik), Pelanggaran 12 (Semua tertangani).
+- Kartu "Tren Penyelesaian Aspirasi": bar chart berpasangan per minggu
+  (Mgg 1-4), legend Masuk (abu-biru) vs Ditumtaskan (teal), badge
+  "4 Minggu".
+- Kartu "Distribusi Kategori Aduan": horizontal progress bar —
+  Sarpras & Prasarana 132 aduan (46%), Akademik & Dosen 78 (28%),
+  Keuangan & UKT 45 (16%), Layanan IT & Fasilitas 29 (10%).
+- Kartu "Performa Unit Kampus" + badge "SLA 48 Jam": baris unit dengan
+  ikon, nama, "Rata-rata 1 hari respon", persentase besar kanan +
+  badge (94% Kecepatan Baik hijau, 82% Normal biru, 71% Perlu Eskalasi
+  merah).
+- Kartu biru "Laporan Eksekutif Bulanan": deskripsi + tombol "Unduh PDF"
+  (teal solid) dan "Unduh Excel" (outline).
+
+══════════════════════════════════════════
+5. MODEL DATA (freezed)
+══════════════════════════════════════════
+- AppUser {id, email, role(student|admin), verificationStatus(pending|
+  verified|rejected), ktmUrl?, monthlyQuotaUsed, monthlyQuotaMax=5}
+- Menfess {id, code("MNF-1042"), category(akademik|sarpras|keuangan|
+  layananIt), body, attachmentUrl?, status(pending|approved|rejected|
+  inProgress|resolved), allowInstagram, isAnonymous, supportCount,
+  reportCount, createdAt}
+- Report {id, menfessId, reason, createdAt}
+- Disposition {id, menfessId, unit, status, slaDeadline, logs[]}
+- InstagramPost {id, menfessId, scheduledAt, format, autoPublish}
+- AnalyticsSummary {total, resolvedRate, avgResponseDays, violations,
+  weeklyTrend[], categoryDistribution[], unitPerformance[]}
+
+══════════════════════════════════════════
+6. ATURAN BISNIS
+══════════════════════════════════════════
+- Kuota 5 menfess/bulan per mahasiswa; saat habis form disabled.
+- Hanya akun terverifikasi (email .ac.id + KTM disetujui) yang bisa
+  menulis.
+- Menfess baru berstatus "pending" sampai admin meloloskan.
+- Deteksi sederhana nama orang/dosen → tampilkan warning kuning.
+- Laporan ≥3 → otomatis masuk tab "Dilaporkan Civitas" (merah) di admin.
+- Hanya menfess approved + allowInstagram yang masuk antrean IG.
+- Role-based routing: admin diarahkan ke shell admin, mahasiswa ke shell
+  mahasiswa.
+
+══════════════════════════════════════════
+7. OUTPUT YANG DIHARAPKAN
+══════════════════════════════════════════
+1. Struktur proyek lengkap + pubspec.yaml.
+2. AppTheme (ThemeData Material 3) + AppColors + AppTextStyles.
+3. Semua widget reusable.
+4. Semua 14+ layar di atas, responsif (lebar acuan 390 dp), aman untuk
+   layar kecil (SafeArea, SingleChildScrollView).
+5. Provider Riverpod + repository mock dengan data contoh sesuai teks
+   di desain (ID #MNF-1042, #MNF-1038, #MNF-1045, dst).
+6. go_router lengkap dengan redirect auth/role.
+7. Kode lengkap, siap `flutter run`, tanpa placeholder "TODO" pada UI.
+Kerjakan bertahap: (a) setup+theme+widget, (b) alur auth, (c) alur
+mahasiswa, (d) panel admin, (e) integrasi data. Setelah tiap tahap,
+tampilkan file lengkap yang dibuat.
