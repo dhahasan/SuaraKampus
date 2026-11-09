@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/data/mock_repository.dart';
-import '../../core/models/app_models.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -21,12 +19,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     super.initState();
     _timer = Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
-      final user = ref.read(currentUserProvider);
-      if (user.role == UserRole.admin) {
-        context.go('/admin/moderasi');
-      } else {
-        context.go('/login-glass');
-      }
+      // Selalu redirect ke halaman login agar user autentikasi ulang
+      context.go('/login-glass');
     });
   }
 

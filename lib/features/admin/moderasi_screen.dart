@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/data/mock_repository.dart';
+import '../../core/models/app_models.dart';
 import '../../core/widgets/app_badge.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
@@ -17,11 +18,27 @@ class ModerasiScreen extends ConsumerStatefulWidget {
 }
 
 class _ModerasiScreenState extends ConsumerState<ModerasiScreen> {
-  int _selectedFilterIndex = 0; // 0: Semua (14), 1: Perlu Sensor, 2: Dilaporkan Civitas (3)
+  int _selectedFilterIndex = 0; // 0: Semua, 1: Perlu Sensor, 2: Dilaporkan Civitas
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(menfessProvider);
+    final allMenfess = ref.watch(menfessProvider);
+
+    final pendingCount =
+        allMenfess.where((m) => m.status == MenfessStatus.pending).length;
+    final reportedCount = allMenfess.where((m) => m.reportCount > 0).length;
+    final sensitiveCount = allMenfess.where((m) => m.isSensitive).length;
+
+    List<Menfess> displayList;
+    if (_selectedFilterIndex == 0) {
+      displayList = allMenfess
+          .where((m) => m.status == MenfessStatus.pending || m.reportCount > 0)
+          .toList();
+    } else if (_selectedFilterIndex == 1) {
+      displayList = allMenfess.where((m) => m.isSensitive).toList();
+    } else {
+      displayList = allMenfess.where((m) => m.reportCount > 0).toList();
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -66,17 +83,17 @@ class _ModerasiScreenState extends ConsumerState<ModerasiScreen> {
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.baseline,
                                   textBaseline: TextBaseline.alphabetic,
-                                  children: const [
+                                  children: [
                                     Text(
-                                      '14',
-                                      style: TextStyle(
+                                      '$pendingCount',
+                                      style: const TextStyle(
                                         fontSize: 22,
                                         fontWeight: FontWeight.bold,
                                         color: AppColors.primary,
                                       ),
                                     ),
-                                    SizedBox(width: 4),
-                                    Text(
+                                    const SizedBox(width: 4),
+                                    const Text(
                                       'menfess baru',
                                       style: TextStyle(
                                         fontSize: 11,
@@ -132,17 +149,17 @@ class _ModerasiScreenState extends ConsumerState<ModerasiScreen> {
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.baseline,
                                   textBaseline: TextBaseline.alphabetic,
-                                  children: const [
+                                  children: [
                                     Text(
-                                      '3',
-                                      style: TextStyle(
+                                      '$reportedCount',
+                                      style: const TextStyle(
                                         fontSize: 22,
                                         fontWeight: FontWeight.bold,
                                         color: AppColors.dangerRed,
                                       ),
                                     ),
-                                    SizedBox(width: 4),
-                                    Text(
+                                    const SizedBox(width: 4),
+                                    const Text(
                                       'perlu telaah',
                                       style: TextStyle(
                                         fontSize: 11,
@@ -160,27 +177,28 @@ class _ModerasiScreenState extends ConsumerState<ModerasiScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Filter Tabs: Semua (14), Perlu Sensor, Dilaporkan Civitas (3)
+                    // Filter Tabs: Semua, Perlu Sensor, Dilaporkan Civitas
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
                           CategoryChip(
                             label: 'Semua',
-                            count: 14,
+                            count: pendingCount,
                             isSelected: _selectedFilterIndex == 0,
                             onTap: () => setState(() => _selectedFilterIndex = 0),
                           ),
                           const SizedBox(width: 8),
                           CategoryChip(
                             label: 'Perlu Sensor',
+                            count: sensitiveCount > 0 ? sensitiveCount : null,
                             isSelected: _selectedFilterIndex == 1,
                             onTap: () => setState(() => _selectedFilterIndex = 1),
                           ),
                           const SizedBox(width: 8),
                           CategoryChip(
                             label: 'Dilaporkan Civitas',
-                            count: 3,
+                            count: reportedCount,
                             isSelected: _selectedFilterIndex == 2,
                             onTap: () => setState(() => _selectedFilterIndex = 2),
                           ),
@@ -242,394 +260,43 @@ class _ModerasiScreenState extends ConsumerState<ModerasiScreen> {
                     ),
                     const SizedBox(height: 14),
 
-                    // Card 1: #MNF-1042 (Sarpras)
-                    AppCard(
-                      margin: const EdgeInsets.only(bottom: 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  const AppBadge(
-                                    text: 'Sarpras',
-                                    type: AppBadgeType.primary,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  const Text(
-                                    '#MNF-1042  ·  12 mnt lalu',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
+                    // Dynamic Menfess Cards from DB
+                    if (displayList.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(32),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.borderCard),
+                        ),
+                        child: Column(
+                          children: const [
+                            Icon(Icons.check_circle_outline,
+                                size: 36, color: AppColors.successGreen),
+                            SizedBox(height: 8),
+                            Text(
+                              'Semua Bersih!',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
                               ),
-                              const AppBadge(
-                                text: 'Menunggu',
-                                type: AppBadgeType.warning,
-                                showDot: true,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          const Text(
-                            'Kursi di ruang kuliah B203 banyak yang patah dan paku mencuat berbahaya. Tolong pihak sarpras segera cek sebelum ada yang terluka saat perkuliahan berlangsung.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textPrimary,
-                              height: 1.4,
                             ),
-                          ),
-                          const SizedBox(height: 10),
-
-                          // Lampiran Box
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF7FAFB),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                  color: AppColors.borderCard, width: 1),
+                            SizedBox(height: 4),
+                            Text(
+                              'Tidak ada menfess yang menunggu peninjauan pada tab ini.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade300,
-                                    borderRadius: BorderRadius.circular(6),
-                                    image: const DecorationImage(
-                                      image: NetworkImage(
-                                        'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=200',
-                                      ),
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: const [
-                                      Text(
-                                        'Ada Foto Bukti Terlampir',
-                                        style: TextStyle(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.textPrimary,
-                                        ),
-                                      ),
-                                      SizedBox(height: 1),
-                                      Text(
-                                        'Lampiran_B203_Kerusakan.jpg (1.2 MB)',
-                                        style: TextStyle(
-                                          fontSize: 9.5,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                                      SizedBox(height: 2),
-                                      Text(
-                                        'Perbesar Gambar ↗',
-                                        style: TextStyle(
-                                          fontSize: 9.5,
-                                          color: AppColors.primary,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Actions: [Loloskan (Publish)] [Tolak]
-                          Row(
-                            children: [
-                              Expanded(
-                                child: AppButton(
-                                  text: 'Loloskan (Publish)',
-                                  icon: Icons.check,
-                                  height: 38,
-                                  fontSize: 11.5,
-                                  onPressed: () {
-                                    ref
-                                        .read(menfessProvider.notifier)
-                                        .approveMenfess('m1');
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                            'Menfess #MNF-1042 berhasil diloloskan.'),
-                                        backgroundColor: AppColors.successGreen,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: AppButton(
-                                  text: 'Tolak',
-                                  icon: Icons.close,
-                                  type: AppButtonType.dangerOutline,
-                                  height: 38,
-                                  fontSize: 11.5,
-                                  onPressed: () {
-                                    ref
-                                        .read(menfessProvider.notifier)
-                                        .rejectMenfess('m1');
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          AppButton(
-                            text: 'Sensor Teks Menfess',
-                            type: AppButtonType.secondary,
-                            icon: Icons.auto_fix_high_rounded,
-                            width: double.infinity,
-                            height: 34,
-                            fontSize: 11,
-                            onPressed: () {
-                              ref
-                                  .read(menfessProvider.notifier)
-                                  .censorText('m1');
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Card 2: #MNF-1038 (Dilaporkan Civitas)
-                    AppCard(
-                      margin: const EdgeInsets.only(bottom: 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  const AppBadge(
-                                    text: 'Akademik',
-                                    type: AppBadgeType.primary,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  const Text(
-                                    '#MNF-1038  ·  45 mnt lalu',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const AppBadge(
-                                text: 'Dilaporkan 3×',
-                                type: AppBadgeType.danger,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-
-                          // Yellow Alasan Pelaporan Banner
-                          const InfoBanner(
-                            title: 'Alasan Pelaporan Civitas',
-                            message:
-                                '"Menyebut inisial dosen secara spesifik yang berpotensi melanggar pedoman etika digital kampus."',
-                            icon: Icons.warning_amber_rounded,
-                            type: InfoBannerType.warning,
-                          ),
-                          const SizedBox(height: 8),
-
-                          const Text(
-                            'Dosen mata kuliah Algoritma Pak B** tidak pernah masuk tapi tiba-tiba ngasih tugas deadline 2 jam di tengah malam. Sangat tidak masuk akal untuk kelas reguler.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textPrimary,
-                              height: 1.4,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-
-                          // Small metrics row: 342 dilihat · 28 respon · Melanggar Pasal 4.2
-                          Row(
-                            children: const [
-                              Icon(Icons.remove_red_eye_outlined,
-                                  size: 11, color: AppColors.textSecondary),
-                              SizedBox(width: 4),
-                              Text('342 dilihat',
-                                  style: TextStyle(
-                                      fontSize: 9.5,
-                                      color: AppColors.textSecondary)),
-                              SizedBox(width: 10),
-                              Icon(Icons.chat_bubble_outline,
-                                  size: 11, color: AppColors.textSecondary),
-                              SizedBox(width: 4),
-                              Text('28 respon',
-                                  style: TextStyle(
-                                      fontSize: 9.5,
-                                      color: AppColors.textSecondary)),
-                              SizedBox(width: 10),
-                              Icon(Icons.gavel_outlined,
-                                  size: 11, color: AppColors.dangerRed),
-                              SizedBox(width: 4),
-                              Text('Melanggar Pasal 4.2',
-                                  style: TextStyle(
-                                      fontSize: 9.5,
-                                      color: AppColors.dangerRed,
-                                      fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Actions: [Hapus & Sanksi] [Abaikan Laporan]
-                          Row(
-                            children: [
-                              Expanded(
-                                child: AppButton(
-                                  text: 'Hapus & Sanksi',
-                                  icon: Icons.delete_outline,
-                                  type: AppButtonType.danger,
-                                  height: 38,
-                                  fontSize: 11.5,
-                                  onPressed: () {
-                                    ref
-                                        .read(menfessProvider.notifier)
-                                        .deleteMenfess('m2');
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                            'Menfess #MNF-1038 dihapus dan disanksi.'),
-                                        backgroundColor: AppColors.dangerRed,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: AppButton(
-                                  text: 'Abaikan Laporan',
-                                  type: AppButtonType.outline,
-                                  height: 38,
-                                  fontSize: 11.5,
-                                  onPressed: () {
-                                    ref
-                                        .read(menfessProvider.notifier)
-                                        .approveMenfess('m2');
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          AppButton(
-                            text: 'Edit & Samarkan Inisial Dosen',
-                            type: AppButtonType.secondary,
-                            icon: Icons.edit_note,
-                            width: double.infinity,
-                            height: 34,
-                            fontSize: 11,
-                            onPressed: () {
-                              ref
-                                  .read(menfessProvider.notifier)
-                                  .censorText('m2');
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                      'Inisial dosen berhasil disamarkan menjadi anonim.'),
-                                  backgroundColor: AppColors.primary,
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Card 3: #MNF-1045 (Fasilitas)
-                    AppCard(
-                      margin: const EdgeInsets.only(bottom: 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  const AppBadge(
-                                    text: 'Fasilitas',
-                                    type: AppBadgeType.primary,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  const Text(
-                                    '#MNF-1045  ·  1 jam lalu',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const AppBadge(
-                                text: 'Menunggu',
-                                type: AppBadgeType.warning,
-                                showDot: true,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          const Text(
-                            'Kantin Fakultas Teknik tolong disediakan tempat sampah terpisah untuk organik dan anorganik. Saat ini sering meluber pas jam makan siang.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textPrimary,
-                              height: 1.4,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Varian Buttons: [Loloskan Segera] [Tahan Dulu]
-                          Row(
-                            children: [
-                              Expanded(
-                                child: AppButton(
-                                  text: 'Loloskan Segera',
-                                  icon: Icons.check,
-                                  height: 38,
-                                  fontSize: 11.5,
-                                  onPressed: () {
-                                    ref
-                                        .read(menfessProvider.notifier)
-                                        .approveMenfess('m3');
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: AppButton(
-                                  text: 'Tahan Dulu',
-                                  type: AppButtonType.outline,
-                                  height: 38,
-                                  fontSize: 11.5,
-                                  onPressed: () {},
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+                          ],
+                        ),
+                      )
+                    else
+                      ...displayList.map((m) => _buildMenfessCard(context, m)),
 
                     // Footer with Thumbs-up
                     const SizedBox(height: 8),
@@ -650,9 +317,9 @@ class _ModerasiScreenState extends ConsumerState<ModerasiScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            'Tersisa 12 Menfess di Antrean',
-                            style: TextStyle(
+                          Text(
+                            'Tersisa $pendingCount Menfess di Antrean',
+                            style: const TextStyle(
                               fontSize: 11.5,
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary,
@@ -679,5 +346,272 @@ class _ModerasiScreenState extends ConsumerState<ModerasiScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildMenfessCard(BuildContext context, Menfess m) {
+    final isReported = m.reportCount > 0;
+
+    return AppCard(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  AppBadge(
+                    text: m.category.label,
+                    type: AppBadgeType.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${m.code}  ·  ${_formatTimeAgo(m.createdAt)}',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              if (isReported)
+                AppBadge(
+                  text: 'Dilaporkan ${m.reportCount}×',
+                  type: AppBadgeType.danger,
+                )
+              else
+                const AppBadge(
+                  text: 'Menunggu',
+                  type: AppBadgeType.warning,
+                  showDot: true,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Yellow Alasan Pelaporan Banner if reported
+          if (isReported && m.reportReasonSummary != null) ...[
+            InfoBanner(
+              title: 'Alasan Pelaporan Civitas',
+              message: '"${m.reportReasonSummary}"',
+              icon: Icons.warning_amber_rounded,
+              type: InfoBannerType.warning,
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          Text(
+            m.body,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textPrimary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Lampiran Box if exists
+          if (m.attachmentUrl != null || m.attachmentName != null) ...[
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7FAFB),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.borderCard, width: 1),
+              ),
+              child: Row(
+                children: [
+                  if (m.attachmentUrl != null)
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(6),
+                        image: DecorationImage(
+                          image: NetworkImage(m.attachmentUrl!),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Ada Foto Bukti Terlampir',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          m.attachmentName ?? 'Lampiran_Bukti.jpg',
+                          style: const TextStyle(
+                            fontSize: 9.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Perbesar Gambar ↗',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // Actions
+          if (isReported) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    text: 'Hapus & Sanksi',
+                    icon: Icons.delete_outline,
+                    type: AppButtonType.danger,
+                    height: 38,
+                    fontSize: 11.5,
+                    onPressed: () {
+                      ref.read(menfessProvider.notifier).deleteMenfess(m.id);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                              'Menfess ${m.code} telah dihapus & pelanggaran dicatat.'),
+                          backgroundColor: AppColors.dangerRed,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: AppButton(
+                    text: 'Abaikan Laporan',
+                    icon: Icons.check_circle_outline,
+                    type: AppButtonType.secondary,
+                    height: 38,
+                    fontSize: 11.5,
+                    onPressed: () {
+                      ref.read(menfessProvider.notifier).approveMenfess(m.id);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                              'Laporan pada ${m.code} diabaikan & aspirasi tetap aktif.'),
+                          backgroundColor: AppColors.successGreen,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            AppButton(
+              text: 'Edit & Samarkan Inisial Dosen',
+              type: AppButtonType.outline,
+              icon: Icons.edit_note_rounded,
+              width: double.infinity,
+              height: 34,
+              fontSize: 11,
+              onPressed: () {
+                ref.read(menfessProvider.notifier).censorText(m.id);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                        'Teks ${m.code} berhasil disamarkan menjadi etis.'),
+                    backgroundColor: AppColors.primary,
+                  ),
+                );
+              },
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    text: 'Loloskan (Publish)',
+                    icon: Icons.check,
+                    height: 38,
+                    fontSize: 11.5,
+                    onPressed: () {
+                      ref.read(menfessProvider.notifier).approveMenfess(m.id);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                              'Menfess ${m.code} berhasil diloloskan ke Feed.'),
+                          backgroundColor: AppColors.successGreen,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: AppButton(
+                    text: 'Tolak',
+                    icon: Icons.close,
+                    type: AppButtonType.dangerOutline,
+                    height: 38,
+                    fontSize: 11.5,
+                    onPressed: () {
+                      ref.read(menfessProvider.notifier).rejectMenfess(m.id);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Menfess ${m.code} ditolak.'),
+                          backgroundColor: AppColors.dangerRed,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            AppButton(
+              text: 'Sensor Teks Menfess',
+              type: AppButtonType.secondary,
+              icon: Icons.auto_fix_high_rounded,
+              width: double.infinity,
+              height: 34,
+              fontSize: 11,
+              onPressed: () {
+                ref.read(menfessProvider.notifier).censorText(m.id);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Teks ${m.code} berhasil disensor.'),
+                    backgroundColor: AppColors.primary,
+                  ),
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatTimeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 60) {
+      return '${diff.inMinutes.clamp(1, 60)} mnt lalu';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours} jam lalu';
+    } else {
+      return '${diff.inDays} hari lalu';
+    }
   }
 }

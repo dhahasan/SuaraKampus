@@ -9,6 +9,12 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/info_banner.dart';
 
+// Kredensial valid untuk demo
+const _validCredentials = {
+  'admin@kampus.ac.id': 'admin123',
+  'mahasiswa@kampus.ac.id': 'kampus123',
+};
+
 class LoginGlassScreen extends ConsumerStatefulWidget {
   const LoginGlassScreen({super.key});
 
@@ -19,8 +25,10 @@ class LoginGlassScreen extends ConsumerStatefulWidget {
 class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
   final _emailController =
       TextEditingController(text: 'mahasiswa@kampus.ac.id');
-  final _passwordController = TextEditingController(text: 'kata sandi');
+  final _passwordController = TextEditingController(text: 'kampus123');
   bool _obscurePassword = true;
+  String? _errorMessage;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -29,8 +37,50 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
     super.dispose();
   }
 
-  void _onLogin() {
-    final email = _emailController.text.trim();
+  Future<void> _onLogin() async {
+    final email = _emailController.text.trim().toLowerCase();
+    final password = _passwordController.text;
+
+    setState(() {
+      _errorMessage = null;
+      _isLoading = true;
+    });
+
+    // Simulasi delay network kecil agar UX terasa nyata
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    if (!mounted) return;
+
+    // Validasi email kosong
+    if (email.isEmpty) {
+      setState(() {
+        _errorMessage = 'Email tidak boleh kosong.';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    // Cek apakah email terdaftar
+    final expectedPassword = _validCredentials[email];
+    if (expectedPassword == null) {
+      setState(() {
+        _errorMessage = 'Email tidak terdaftar di sistem kampus.';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    // Validasi kata sandi
+    if (password != expectedPassword) {
+      setState(() {
+        _errorMessage = 'Kata sandi salah. Silakan coba lagi.';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    setState(() => _isLoading = false);
+
     if (email.contains('admin')) {
       ref.read(currentUserProvider.notifier).setUser(
             AppUser(
@@ -45,7 +95,7 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
       ref.read(currentUserProvider.notifier).setUser(
             AppUser(
               id: 'user_1',
-              email: email.isEmpty ? '2110511042@mahasiswa.kampus.ac.id' : email,
+              email: email,
               role: UserRole.student,
               verificationStatus: VerificationStatus.verified,
               monthlyQuotaUsed: 2,
@@ -159,7 +209,7 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
                             // Field: Kata Sandi
                             AppTextField(
                               label: 'KATA SANDI',
-                              hintText: 'kata sandi',
+                              hintText: 'Masukkan kata sandi',
                               controller: _passwordController,
                               obscureText: _obscurePassword,
                               suffixIcon: IconButton(
@@ -194,14 +244,47 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
                                 ),
                               ),
                             ),
+
+                            // Error message
+                            if (_errorMessage != null) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFEDED),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: AppColors.dangerRed
+                                        .withValues(alpha: 0.4),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.error_outline,
+                                        size: 14, color: AppColors.dangerRed),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        _errorMessage!,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.dangerRed,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 20),
 
                             // Tombol Masuk
                             AppButton(
-                              text: 'MASUK',
+                              text: _isLoading ? 'Memeriksa...' : 'MASUK',
                               width: double.infinity,
                               height: 44,
-                              onPressed: _onLogin,
+                              onPressed: _isLoading ? null : _onLogin,
                             ),
                             const SizedBox(height: 16),
 
@@ -243,9 +326,63 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
                     icon: Icons.shield_outlined,
                     type: InfoBannerType.info,
                   ),
+                  const SizedBox(height: 10),
+
+                  // Info akun demo
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.borderCard),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: const [
+                            Icon(Icons.info_outline,
+                                size: 12, color: AppColors.primary),
+                            SizedBox(width: 4),
+                            Text(
+                              'Akun Demo — tap untuk isi otomatis',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        _DemoLoginRow(
+                          label: 'Mahasiswa',
+                          email: 'mahasiswa@kampus.ac.id',
+                          password: 'kampus123',
+                          onTap: () {
+                            _emailController.text = 'mahasiswa@kampus.ac.id';
+                            _passwordController.text = 'kampus123';
+                            setState(() => _errorMessage = null);
+                          },
+                        ),
+                        const SizedBox(height: 4),
+                        _DemoLoginRow(
+                          label: 'Admin',
+                          email: 'admin@kampus.ac.id',
+                          password: 'admin123',
+                          onTap: () {
+                            _emailController.text = 'admin@kampus.ac.id';
+                            _passwordController.text = 'admin123';
+                            setState(() => _errorMessage = null);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
 
                   // Quick test access helper
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Wrap(
                     spacing: 8,
                     runSpacing: 4,
@@ -254,32 +391,41 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
                       TextButton(
                         onPressed: () => context.go('/auth/masuk'),
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         child: const Text('Mode Tab Masuk/Daftar',
-                            style: TextStyle(fontSize: 10, color: AppColors.primary)),
+                            style: TextStyle(
+                                fontSize: 10, color: AppColors.primary)),
                       ),
                       TextButton(
-                        onPressed: () => context.go('/auth/verifikasi-ditolak'),
+                        onPressed: () =>
+                            context.go('/auth/verifikasi-ditolak'),
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         child: const Text('KTM Ditolak',
-                            style: TextStyle(fontSize: 10, color: AppColors.dangerRed)),
+                            style: TextStyle(
+                                fontSize: 10, color: AppColors.dangerRed)),
                       ),
                       TextButton(
-                        onPressed: () => context.go('/auth/verifikasi-menunggu'),
+                        onPressed: () =>
+                            context.go('/auth/verifikasi-menunggu'),
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         child: const Text('KTM Menunggu',
-                            style: TextStyle(fontSize: 10, color: AppColors.pendingAmber)),
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: AppColors.pendingAmber)),
                       ),
                     ],
                   ),
@@ -287,6 +433,65 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// Widget helper: baris akun demo
+class _DemoLoginRow extends StatelessWidget {
+  final String label;
+  final String email;
+  final String password;
+  final VoidCallback onTap;
+
+  const _DemoLoginRow({
+    required this.label,
+    required this.email,
+    required this.password,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.infoBg,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const Text(' · ',
+                style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+            Text(
+              email,
+              style: const TextStyle(
+                fontSize: 10,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              password,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
+          ],
         ),
       ),
     );

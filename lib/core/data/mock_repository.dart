@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_models.dart';
+import 'app_repository.dart';
+import 'sqlite_repository.dart';
 
 class MockDataRepository {
   // Current user state
@@ -111,7 +113,7 @@ class MockDataRepository {
           'AC lab komputer gedung 3 bocor dan air merembes ke kabel stopkontak.',
       correspondenceDetail:
           'Terkirim ke email kabag_sarpras@kampus.ac.id pada 24 Okt. Menunggu konfirmasi pengerjaan fisik di lapangan.',
-      logs: [
+      logs: const [
         DispositionLog(time: '24 Okt, 09:15', text: 'Tiket diterbitkan oleh Admin'),
         DispositionLog(time: '24 Okt, 10:00', text: 'Email terkirim ke Biro Sarpras'),
       ],
@@ -129,15 +131,15 @@ class MockDataRepository {
           'Koneksi Wi-Fi Eduroam di perpustakaan lantai 2 tidak bisa autentikasi sejak Senin.',
       correspondenceDetail:
           'Tiket terdistribusi otomatis via webhook kampus. Unit IT belum menetapkan PIC penanganan jaringan.',
-      logs: [
+      logs: const [
         DispositionLog(time: '23 Okt, 14:00', text: 'Webhook terkirim ke IT helpdesk'),
       ],
     ),
   ];
 
   // List of Instagram posts for Admin Screen 19
-  List<InstagramPost> instagramQueue = [
-    const InstagramPost(
+  List<InstagramPost> instagramQueue = const [
+    InstagramPost(
       id: 'ig1',
       scheduleNumber: '#83',
       menfessId: 'm6',
@@ -151,7 +153,7 @@ class MockDataRepository {
       autoPublish: true,
       status: 'Terjadwal',
     ),
-    const InstagramPost(
+    InstagramPost(
       id: 'ig2',
       scheduleNumber: '#84',
       menfessId: 'm4',
@@ -165,7 +167,7 @@ class MockDataRepository {
       autoPublish: true,
       status: 'Terjadwal',
     ),
-    const InstagramPost(
+    InstagramPost(
       id: 'ig3',
       scheduleNumber: '#85',
       menfessId: 'm7',
@@ -231,14 +233,34 @@ class MockDataRepository {
 // RIVERPOD NOTIFIERS & PROVIDERS
 // -------------------------------------------------------------
 
+final appRepositoryProvider = Provider<AppRepository>((ref) {
+  return SqliteRepository();
+});
+
 final repositoryProvider = Provider<MockDataRepository>((ref) {
   return MockDataRepository();
 });
 
 class CurrentUserNotifier extends StateNotifier<AppUser> {
-  CurrentUserNotifier(super.initial);
+  final AppRepository _repo;
 
-  void setUser(AppUser user) => state = user;
+  CurrentUserNotifier(super.initial, this._repo) {
+    _initFromDb();
+  }
+
+  Future<void> _initFromDb() async {
+    try {
+      final user = await _repo.getCurrentUser(state.id);
+      if (user != null) {
+        state = user;
+      }
+    } catch (_) {}
+  }
+
+  void setUser(AppUser user) {
+    state = user;
+    _repo.saveUser(user);
+  }
 
   void toggleRole() {
     if (state.role == UserRole.student) {
@@ -246,6 +268,7 @@ class CurrentUserNotifier extends StateNotifier<AppUser> {
     } else {
       state = state.copyWith(role: UserRole.student);
     }
+    _repo.saveUser(state);
   }
 
   void setVerification(VerificationStatus status, {String? rejectionReason}) {
@@ -253,17 +276,20 @@ class CurrentUserNotifier extends StateNotifier<AppUser> {
       verificationStatus: status,
       rejectionReason: rejectionReason,
     );
+    _repo.saveUser(state);
   }
 
   void toggleQuota(bool isExhausted) {
     state = state.copyWith(
       monthlyQuotaUsed: isExhausted ? 5 : 2,
     );
+    _repo.saveUser(state);
   }
 
   void useQuota() {
     if (state.monthlyQuotaUsed < state.monthlyQuotaMax) {
       state = state.copyWith(monthlyQuotaUsed: state.monthlyQuotaUsed + 1);
+      _repo.saveUser(state);
     }
   }
 }
@@ -271,11 +297,25 @@ class CurrentUserNotifier extends StateNotifier<AppUser> {
 final currentUserProvider =
     StateNotifierProvider<CurrentUserNotifier, AppUser>((ref) {
   final repo = ref.watch(repositoryProvider);
-  return CurrentUserNotifier(repo.currentUser);
+  final appRepo = ref.watch(appRepositoryProvider);
+  return CurrentUserNotifier(repo.currentUser, appRepo);
 });
 
 class MenfessNotifier extends StateNotifier<List<Menfess>> {
-  MenfessNotifier(super.initial);
+  final AppRepository _repo;
+
+  MenfessNotifier(super.initial, this._repo) {
+    _initFromDb();
+  }
+
+  Future<void> _initFromDb() async {
+    try {
+      final list = await _repo.getMenfessList();
+      if (list.isNotEmpty) {
+        state = list;
+      }
+    } catch (_) {}
+  }
 
   void addMenfess({
     required MenfessCategory category,
@@ -300,6 +340,7 @@ class MenfessNotifier extends StateNotifier<List<Menfess>> {
       createdAt: DateTime.now(),
     );
     state = [item, ...state];
+    _repo.addMenfess(item);
   }
 
   void toggleSupport(String id) {
@@ -307,6 +348,7 @@ class MenfessNotifier extends StateNotifier<List<Menfess>> {
       for (final m in state)
         if (m.id == id) m.copyWith(supportCount: m.supportCount + 1) else m
     ];
+    _repo.toggleSupport(id);
   }
 
   void reportMenfess(String id, String reason) {
@@ -320,6 +362,7 @@ class MenfessNotifier extends StateNotifier<List<Menfess>> {
         else
           m
     ];
+    _repo.reportMenfess(id, reason);
   }
 
   void approveMenfess(String id) {
@@ -327,6 +370,7 @@ class MenfessNotifier extends StateNotifier<List<Menfess>> {
       for (final m in state)
         if (m.id == id) m.copyWith(status: MenfessStatus.approved) else m
     ];
+    _repo.approveMenfess(id);
   }
 
   void rejectMenfess(String id) {
@@ -334,50 +378,74 @@ class MenfessNotifier extends StateNotifier<List<Menfess>> {
       for (final m in state)
         if (m.id == id) m.copyWith(status: MenfessStatus.rejected) else m
     ];
+    _repo.rejectMenfess(id);
   }
 
   void censorText(String id) {
+    String? updatedBody;
     state = [
       for (final m in state)
-        if (m.id == id)
-          m.copyWith(
-            body: m.body.replaceAll(RegExp(r'Pak [A-Za-z]+|Bu [A-Za-z]+'), 'Dosen ***'),
+        if (m.id == id) () {
+          final newBody = m.body.replaceAll(
+              RegExp(r'Pak [A-Za-z]+|Bu [A-Za-z]+'), 'Dosen ***');
+          updatedBody = newBody;
+          return m.copyWith(
+            body: newBody,
             isSensitive: false,
-          )
+          );
+        }()
         else
           m
     ];
+    if (updatedBody != null) {
+      _repo.censorText(id, updatedBody!);
+    }
   }
 
   void deleteMenfess(String id) {
     state = state.where((m) => m.id != id).toList();
+    _repo.deleteMenfess(id);
   }
 }
 
 final menfessProvider =
     StateNotifierProvider<MenfessNotifier, List<Menfess>>((ref) {
   final repo = ref.watch(repositoryProvider);
-  return MenfessNotifier(repo.menfessList);
+  final appRepo = ref.watch(appRepositoryProvider);
+  return MenfessNotifier(repo.menfessList, appRepo);
 });
 
 class DispositionNotifier extends StateNotifier<List<Disposition>> {
-  DispositionNotifier(super.initial);
+  final AppRepository _repo;
+
+  DispositionNotifier(super.initial, this._repo) {
+    _initFromDb();
+  }
+
+  Future<void> _initFromDb() async {
+    try {
+      final list = await _repo.getDispositions();
+      if (list.isNotEmpty) {
+        state = list;
+      }
+    } catch (_) {}
+  }
 
   void markResolved(String id) {
     state = [
       for (final d in state)
         if (d.id == id) d.copyWith(status: 'Selesai', isOverdue: false) else d
     ];
+    _repo.markDispositionResolved(id);
   }
 
   void sendReminder(String id) {
-    // adds log
     state = [
       for (final d in state)
         if (d.id == id)
           d.copyWith(logs: [
             ...d.logs,
-            DispositionLog(
+            const DispositionLog(
               time: 'Baru saja',
               text: 'Pengingat dikirimkan ke pihak pimpinan unit',
             ),
@@ -385,26 +453,48 @@ class DispositionNotifier extends StateNotifier<List<Disposition>> {
         else
           d
     ];
+    _repo.sendDispositionReminder(id);
   }
 }
 
 final dispositionProvider =
     StateNotifierProvider<DispositionNotifier, List<Disposition>>((ref) {
   final repo = ref.watch(repositoryProvider);
-  return DispositionNotifier(repo.dispositions);
+  final appRepo = ref.watch(appRepositoryProvider);
+  return DispositionNotifier(repo.dispositions, appRepo);
 });
 
 class InstagramNotifier extends StateNotifier<List<InstagramPost>> {
-  InstagramNotifier(super.initial);
+  final AppRepository _repo;
+
+  InstagramNotifier(super.initial, this._repo) {
+    _initFromDb();
+  }
+
+  Future<void> _initFromDb() async {
+    try {
+      final list = await _repo.getInstagramPosts();
+      if (list.isNotEmpty) {
+        state = list;
+      }
+    } catch (_) {}
+  }
 
   void toggleAutoPublish(String id) {
+    bool? newAuto;
     state = [
       for (final post in state)
-        if (post.id == id)
-          post.copyWith(autoPublish: !post.autoPublish)
+        if (post.id == id) () {
+          final val = !post.autoPublish;
+          newAuto = val;
+          return post.copyWith(autoPublish: val);
+        }()
         else
           post
     ];
+    if (newAuto != null) {
+      _repo.toggleInstagramAutoPublish(id, newAuto!);
+    }
   }
 
   void generateBatch() {
@@ -415,5 +505,6 @@ class InstagramNotifier extends StateNotifier<List<InstagramPost>> {
 final instagramProvider =
     StateNotifierProvider<InstagramNotifier, List<InstagramPost>>((ref) {
   final repo = ref.watch(repositoryProvider);
-  return InstagramNotifier(repo.instagramQueue);
+  final appRepo = ref.watch(appRepositoryProvider);
+  return InstagramNotifier(repo.instagramQueue, appRepo);
 });

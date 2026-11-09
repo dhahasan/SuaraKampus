@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/data/mock_repository.dart';
+import '../../core/models/app_models.dart';
 import '../../core/widgets/app_badge.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
@@ -16,12 +18,26 @@ class AntreanInstagramScreen extends ConsumerStatefulWidget {
       _AntreanInstagramScreenState();
 }
 
-class _AntreanInstagramScreenState extends ConsumerState<AntreanInstagramScreen> {
-  int _selectedTab = 0; // 0: Antrean Terjadwal (6), 1: Draft Desain Feed, 2: Sudah Terbit
-  bool _autoPublish84 = true;
+class _AntreanInstagramScreenState
+    extends ConsumerState<AntreanInstagramScreen> {
+  int _selectedTab =
+      0; // 0: Antrean Terjadwal, 1: Draft Desain Feed, 2: Sudah Terbit
 
   @override
   Widget build(BuildContext context) {
+    final allPosts = ref.watch(instagramProvider);
+
+    // Filter berdasarkan tab
+    final terjadwal =
+        allPosts.where((p) => p.status == 'Terjadwal').toList();
+    final draft =
+        allPosts.where((p) => p.status == 'Draft Desain Feed').toList();
+    final terbit =
+        allPosts.where((p) => p.status == 'Sudah Terbit').toList();
+
+    final currentList =
+        _selectedTab == 0 ? terjadwal : (_selectedTab == 1 ? draft : terbit);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -42,9 +58,9 @@ class _AntreanInstagramScreenState extends ConsumerState<AntreanInstagramScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Column(
+                        const Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                          children: [
                             Row(
                               children: [
                                 Icon(Icons.auto_awesome,
@@ -73,13 +89,13 @@ class _AntreanInstagramScreenState extends ConsumerState<AntreanInstagramScreen>
                           ],
                         ),
                         Row(
-                          children: const [
+                          children: [
                             AppBadge(
-                              text: 'Slot Harian 3/4',
+                              text: 'Slot ${terjadwal.length}/4',
                               type: AppBadgeType.neutral,
                             ),
-                            SizedBox(width: 6),
-                            AppBadge(
+                            const SizedBox(width: 6),
+                            const AppBadge(
                               text: 'Template V2',
                               type: AppBadgeType.primary,
                             ),
@@ -112,12 +128,12 @@ class _AntreanInstagramScreenState extends ConsumerState<AntreanInstagramScreen>
                                         size: 18, color: AppColors.primary),
                                   ),
                                   const SizedBox(width: 10),
-                                  Column(
+                                  const Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
                                       Row(
-                                        children: const [
+                                        children: [
                                           Text(
                                             '@suarakampus_official',
                                             style: TextStyle(
@@ -133,7 +149,7 @@ class _AntreanInstagramScreenState extends ConsumerState<AntreanInstagramScreen>
                                         ],
                                       ),
                                       Row(
-                                        children: const [
+                                        children: [
                                           Icon(Icons.check_circle,
                                               size: 10,
                                               color: AppColors.successGreen),
@@ -164,35 +180,36 @@ class _AntreanInstagramScreenState extends ConsumerState<AntreanInstagramScreen>
                           const SizedBox(height: 12),
 
                           // Upcoming Slot Info
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F7FA),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: const [
-                                Icon(Icons.schedule,
-                                    size: 13, color: AppColors.primary),
-                                SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    'Jadwal Unggahan Terdekat:\nHari ini, 19:00 WIB (Slot Sore)',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.textPrimary,
-                                      height: 1.3,
+                          if (terjadwal.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F7FA),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.schedule,
+                                      size: 13, color: AppColors.primary),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'Jadwal Terdekat: ${terjadwal.first.scheduledTimeText}',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: AppColors.textPrimary,
+                                        height: 1.3,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                AppBadge(
-                                  text: '32 mnt lagi',
-                                  type: AppBadgeType.primary,
-                                ),
-                              ],
+                                  AppBadge(
+                                    text: terjadwal.first.scheduleNumber,
+                                    type: AppBadgeType.primary,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),
@@ -205,19 +222,21 @@ class _AntreanInstagramScreenState extends ConsumerState<AntreanInstagramScreen>
                         children: [
                           CategoryChip(
                             label: 'Antrean Terjadwal',
-                            count: 6,
+                            count: terjadwal.length,
                             isSelected: _selectedTab == 0,
                             onTap: () => setState(() => _selectedTab = 0),
                           ),
                           const SizedBox(width: 8),
                           CategoryChip(
                             label: 'Draf Desain Feed',
+                            count: draft.isNotEmpty ? draft.length : null,
                             isSelected: _selectedTab == 1,
                             onTap: () => setState(() => _selectedTab = 1),
                           ),
                           const SizedBox(width: 8),
                           CategoryChip(
                             label: 'Sudah Terbit',
+                            count: terbit.isNotEmpty ? terbit.length : null,
                             isSelected: _selectedTab == 2,
                             onTap: () => setState(() => _selectedTab = 2),
                           ),
@@ -235,435 +254,44 @@ class _AntreanInstagramScreenState extends ConsumerState<AntreanInstagramScreen>
                     ),
                     const SizedBox(height: 12),
 
-                    // Card Terjadwal #83 with Instagram Slide Preview
-                    AppCard(
-                      margin: const EdgeInsets.only(bottom: 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: const [
-                              Row(
-                                children: [
-                                  AppBadge(
-                                    text: '• Terjadwal #83',
-                                    type: AppBadgeType.primary,
-                                  ),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    '19:00 WIB',
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              AppBadge(
-                                text: 'Carousel (3/3)',
-                                type: AppBadgeType.neutral,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Instagram Graphic Slide Mockup
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFEAF5F8), Color(0xFFD6ECF3)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                  color: const Color(0xFFC8E3ED), width: 1),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: const [
-                                    Row(
-                                      children: [
-                                        Icon(Icons.forum,
-                                            size: 12, color: AppColors.primary),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          'SuaraKampus Menfess',
-                                          style: TextStyle(
-                                            fontSize: 9.5,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.primary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    Text(
-                                      'Slide 1',
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: const [
-                                    Text(
-                                      '#ASPIRASIKAMPUS',
-                                      style: TextStyle(
-                                        fontSize: 8.5,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.primary,
-                                      ),
-                                    ),
-                                    Spacer(),
-                                    Text(
-                                      'Fakultas Ekonomi',
-                                      style: TextStyle(
-                                        fontSize: 8.5,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'Evaluasi Mata Kuliah:\n"Alur pembayaran UKT via teller bank mitra sangat membingungkan, tolong.."',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.textPrimary,
-                                    height: 1.35,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: const [
-                                    Text(
-                                      'ID: #MNF-9921 • Anonim',
-                                      style: TextStyle(
-                                        fontSize: 8.5,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                    Spacer(),
-                                    Icon(Icons.chat_bubble_outline,
-                                        size: 10,
-                                        color: AppColors.textSecondary),
-                                    SizedBox(width: 3),
-                                    Text(
-                                      '142 Respons',
-                                      style: TextStyle(
-                                        fontSize: 8.5,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-
-                          // Caption Preview with Edit
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: const [
-                              Row(
-                                children: [
-                                  Icon(Icons.short_text,
-                                      size: 13, color: AppColors.textSecondary),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Caption Pratinjau',
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Text(
-                                'Edit',
-                                style: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Sobat Kampus, ada masukan penting seputar alur teller UKT semester ini. Mari...\n#SuaraKampus #AspirasiMahasiswa #UKTKampus #Advokasi',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: AppColors.textSecondary,
-                              height: 1.35,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Actions: [Pratinjau Feed] [Ganti Desain]
-                          Row(
+                    // Daftar post dinamis
+                    if (currentList.isEmpty)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Column(
                             children: [
-                              Expanded(
-                                child: AppButton(
-                                  text: 'Pratinjau Feed',
-                                  icon: Icons.remove_red_eye_outlined,
-                                  type: AppButtonType.secondary,
-                                  height: 36,
-                                  fontSize: 11,
-                                  onPressed: () {},
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: AppButton(
-                                  text: 'Ganti Desain',
-                                  icon: Icons.palette_outlined,
-                                  type: AppButtonType.outline,
-                                  height: 36,
-                                  fontSize: 11,
-                                  onPressed: () {},
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Card Terjadwal #84 with toggle Auto-Post
-                    AppCard(
-                      margin: const EdgeInsets.only(bottom: 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: const [
-                              Row(
-                                children: [
-                                  AppBadge(
-                                    text: '• Terjadwal #84',
-                                    type: AppBadgeType.primary,
-                                  ),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Besok, 12:00 WIB',
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              Icon(Icons.inbox_outlined,
+                                  size: 40,
+                                  color: AppColors.textSecondary
+                                      .withValues(alpha: 0.4)),
+                              const SizedBox(height: 8),
                               Text(
-                                'Sarana\nPrasarana',
-                                textAlign: TextAlign.right,
-                                style: TextStyle(
-                                  fontSize: 9,
+                                _selectedTab == 0
+                                    ? 'Belum ada antrean terjadwal'
+                                    : _selectedTab == 1
+                                        ? 'Belum ada draf desain feed'
+                                        : 'Belum ada konten yang terbit',
+                                style: const TextStyle(
+                                  fontSize: 12,
                                   color: AppColors.textSecondary,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.infoBg,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: const Icon(Icons.wifi,
-                                    size: 14, color: AppColors.primary),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: const [
-                                    Text(
-                                      'Wi-Fi Gedung C Drop  #HF-8924',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    Text(
-                                      '"Wi-Fi gedung C sering putus saat praktikum daring lab lantai 3. Mohon..."',
-                                      style: TextStyle(
-                                        fontSize: 9.5,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                    Text(
-                                      '✓ Disetujui Tim Sarpras',
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        color: AppColors.successGreen,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
+                        ),
+                      )
+                    else
+                      ...currentList.map((post) =>
+                          _InstagramPostCard(post: post)),
 
-                          // Toggle Publikasikan Otomatis
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF7FBFD),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                  color: AppColors.borderCard, width: 0.8),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Switch(
-                                      value: _autoPublish84,
-                                      onChanged: (val) {
-                                        setState(() {
-                                          _autoPublish84 = val;
-                                        });
-                                      },
-                                      activeThumbColor: AppColors.primary,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: const [
-                                        Text(
-                                          'Publikasikan Otomatis',
-                                          style: TextStyle(
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Auto-post saat jam tiba',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            color: AppColors.textSecondary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit_outlined,
-                                          size: 16,
-                                          color: AppColors.textSecondary),
-                                      onPressed: () {},
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline,
-                                          size: 16,
-                                          color: AppColors.textSecondary),
-                                      onPressed: () {},
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Item Terjadwal #85: Jadwal Bus Kampus Malam
-                    AppCard(
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE8F3F7),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              '20:30\nBESOK',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Text(
-                                  'Jadwal Bus Kampus Malam  #85',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                Text(
-                                  'Format Single Post • Siap Antre',
-                                  style: TextStyle(
-                                    fontSize: 9.5,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          AppButton(
-                            text: 'Detail',
-                            type: AppButtonType.secondary,
-                            height: 28,
-                            fontSize: 10,
-                            onPressed: () {},
-                          ),
-                        ],
-                      ),
-                    ),
                     const SizedBox(height: 20),
                   ],
                 ),
               ),
             ),
 
-            // Sticky Bottom Button: Generate Feed Batch Hari Ini
+            // Sticky Bottom Button
             Container(
               padding: const EdgeInsets.all(16),
               decoration: const BoxDecoration(
@@ -693,6 +321,226 @@ class _AntreanInstagramScreenState extends ConsumerState<AntreanInstagramScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// Widget card per post Instagram
+class _InstagramPostCard extends ConsumerWidget {
+  final InstagramPost post;
+
+  const _InstagramPostCard({required this.post});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return AppCard(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header baris atas
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  AppBadge(
+                    text: '• ${post.status} ${post.scheduleNumber}',
+                    type: post.status == 'Terjadwal'
+                        ? AppBadgeType.primary
+                        : post.status == 'Draft Desain Feed'
+                            ? AppBadgeType.neutral
+                            : AppBadgeType.success,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    post.scheduledTimeText,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              AppBadge(
+                text: post.format,
+                type: AppBadgeType.neutral,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Preview mockup IG
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFEAF5F8), Color(0xFFD6ECF3)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFC8E3ED), width: 1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.forum, size: 12, color: AppColors.primary),
+                        SizedBox(width: 4),
+                        Text(
+                          'SuaraKampus Menfess',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      post.facultyTag,
+                      style: const TextStyle(
+                          fontSize: 9, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '"${post.quoteText}"',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Caption preview
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: const [
+              Row(
+                children: [
+                  Icon(Icons.short_text,
+                      size: 13, color: AppColors.textSecondary),
+                  SizedBox(width: 4),
+                  Text(
+                    'Caption Pratinjau',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                'Edit',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            post.caption.length > 100
+                ? '${post.caption.substring(0, 100)}...'
+                : post.caption,
+            style: const TextStyle(
+              fontSize: 10,
+              color: AppColors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Toggle Auto Publish
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7FBFD),
+              borderRadius: BorderRadius.circular(8),
+              border:
+                  Border.all(color: AppColors.borderCard, width: 0.8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Switch(
+                      value: post.autoPublish,
+                      onChanged: (val) {
+                        ref
+                            .read(instagramProvider.notifier)
+                            .toggleAutoPublish(post.id);
+                      },
+                      activeThumbColor: AppColors.primary,
+                      materialTapTargetSize:
+                          MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    const SizedBox(width: 4),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Publikasikan Otomatis',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          'Auto-post saat jam tiba',
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined,
+                          size: 16, color: AppColors.textSecondary),
+                      onPressed: () {},
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline,
+                          size: 16, color: AppColors.textSecondary),
+                      onPressed: () {},
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
