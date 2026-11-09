@@ -62,10 +62,15 @@ void main() {
       expect(fetched, isNotNull);
       expect(fetched!.body, 'Testing database integration for SuaraKampus');
 
-      // Toggle Support
+      // Toggle Support (Like -> supportCount = 1)
       await repo.toggleSupport('test_m1');
       fetched = await repo.getMenfessById('test_m1');
       expect(fetched!.supportCount, 1);
+
+      // Toggle Support kembali (Unlike -> supportCount = 0)
+      await repo.toggleSupport('test_m1');
+      fetched = await repo.getMenfessById('test_m1');
+      expect(fetched!.supportCount, 0);
 
       // Report
       await repo.reportMenfess('test_m1', 'Uji coba laporan');

@@ -3,17 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/data/auth_service.dart';
 import '../../core/data/mock_repository.dart';
 import '../../core/models/app_models.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/info_banner.dart';
-
-// Kredensial valid untuk demo
-const _validCredentials = {
-  'admin@kampus.ac.id': 'admin123',
-  'mahasiswa@kampus.ac.id': 'kampus123',
-};
 
 class LoginGlassScreen extends ConsumerStatefulWidget {
   const LoginGlassScreen({super.key});
@@ -38,7 +33,7 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
   }
 
   Future<void> _onLogin() async {
-    final email = _emailController.text.trim().toLowerCase();
+    final email = _emailController.text;
     final password = _passwordController.text;
 
     setState(() {
@@ -47,33 +42,18 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
     });
 
     // Simulasi delay network kecil agar UX terasa nyata
-    await Future.delayed(const Duration(milliseconds: 400));
+    await Future.delayed(const Duration(milliseconds: 300));
 
     if (!mounted) return;
 
-    // Validasi email kosong
-    if (email.isEmpty) {
-      setState(() {
-        _errorMessage = 'Email tidak boleh kosong.';
-        _isLoading = false;
-      });
-      return;
-    }
+    final result = AuthService.instance.validateLogin(
+      email: email,
+      password: password,
+    );
 
-    // Cek apakah email terdaftar
-    final expectedPassword = _validCredentials[email];
-    if (expectedPassword == null) {
+    if (!result.isSuccess) {
       setState(() {
-        _errorMessage = 'Email tidak terdaftar di sistem kampus.';
-        _isLoading = false;
-      });
-      return;
-    }
-
-    // Validasi kata sandi
-    if (password != expectedPassword) {
-      setState(() {
-        _errorMessage = 'Kata sandi salah. Silakan coba lagi.';
+        _errorMessage = result.errorMessage;
         _isLoading = false;
       });
       return;
@@ -81,27 +61,12 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
 
     setState(() => _isLoading = false);
 
-    if (email.contains('admin')) {
-      ref.read(currentUserProvider.notifier).setUser(
-            AppUser(
-              id: 'admin_1',
-              email: email,
-              role: UserRole.admin,
-              verificationStatus: VerificationStatus.verified,
-            ),
-          );
+    final user = result.user!;
+    ref.read(currentUserProvider.notifier).setUser(user);
+
+    if (user.role == UserRole.admin) {
       context.go('/admin/moderasi');
     } else {
-      ref.read(currentUserProvider.notifier).setUser(
-            AppUser(
-              id: 'user_1',
-              email: email,
-              role: UserRole.student,
-              verificationStatus: VerificationStatus.verified,
-              monthlyQuotaUsed: 2,
-              monthlyQuotaMax: 5,
-            ),
-          );
       context.go('/feed');
     }
   }
@@ -233,7 +198,32 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
                             Align(
                               alignment: Alignment.centerRight,
                               child: GestureDetector(
-                                onTap: () {},
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text(
+                                        'Bantuan Kata Sandi',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      content: const Text(
+                                        'Untuk mengatur ulang kata sandi akun SSO Kampus, silakan hubungi Biro IT di it-helpdesk@kampus.ac.id atau gunakan akun demo yang tersedia.',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx),
+                                          child: const Text('Mengerti',
+                                              style: TextStyle(
+                                                  color: AppColors.primary)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
                                 child: const Text(
                                   'Lupa kata sandi?',
                                   style: TextStyle(
@@ -362,6 +352,18 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
                           password: 'kampus123',
                           onTap: () {
                             _emailController.text = 'mahasiswa@kampus.ac.id';
+                            _passwordController.text = 'kampus123';
+                            setState(() => _errorMessage = null);
+                          },
+                        ),
+                        const SizedBox(height: 4),
+                        _DemoLoginRow(
+                          label: 'NIM Mhs',
+                          email: '2110511042@mahasiswa.kampus.ac.id',
+                          password: 'kampus123',
+                          onTap: () {
+                            _emailController.text =
+                                '2110511042@mahasiswa.kampus.ac.id';
                             _passwordController.text = 'kampus123';
                             setState(() => _errorMessage = null);
                           },

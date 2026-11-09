@@ -59,17 +59,61 @@ class AdminHeader extends ConsumerWidget {
                 constraints: const BoxConstraints(),
               ),
               const SizedBox(width: 14),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: const BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.person,
-                  color: Colors.white,
-                  size: 18,
+              PopupMenuButton<String>(
+                tooltip: 'Menu Admin',
+                onSelected: (value) {
+                  if (value == 'switch') {
+                    ref.read(currentUserProvider.notifier).setUser(
+                          const AppUser(
+                            id: 'user_1',
+                            email: '2110511042@mahasiswa.kampus.ac.id',
+                            role: UserRole.student,
+                            verificationStatus: VerificationStatus.verified,
+                          ),
+                        );
+                    context.go('/feed');
+                  } else if (value == 'logout') {
+                    ref.read(currentUserProvider.notifier).logout();
+                    context.go('/login-glass');
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(
+                    value: 'switch',
+                    child: Row(
+                      children: [
+                        Icon(Icons.swap_horiz, size: 16),
+                        SizedBox(width: 8),
+                        Text('Tampilan Mahasiswa',
+                            style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout, size: 16, color: AppColors.dangerRed),
+                        SizedBox(width: 8),
+                        Text('Keluar Akun',
+                            style: TextStyle(
+                                fontSize: 12, color: AppColors.dangerRed)),
+                      ],
+                    ),
+                  ),
+                ],
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: const BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.person,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
               ),
             ],

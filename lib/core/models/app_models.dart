@@ -157,6 +157,7 @@ class Menfess {
   final DateTime createdAt;
   final String? reportReasonSummary;
   final bool isSensitive;
+  final bool isSupportedByMe;
 
   const Menfess({
     required this.id,
@@ -173,6 +174,7 @@ class Menfess {
     required this.createdAt,
     this.reportReasonSummary,
     this.isSensitive = false,
+    this.isSupportedByMe = false,
   });
 
   Menfess copyWith({
@@ -190,6 +192,7 @@ class Menfess {
     DateTime? createdAt,
     String? reportReasonSummary,
     bool? isSensitive,
+    bool? isSupportedByMe,
   }) {
     return Menfess(
       id: id ?? this.id,
@@ -206,6 +209,7 @@ class Menfess {
       createdAt: createdAt ?? this.createdAt,
       reportReasonSummary: reportReasonSummary ?? this.reportReasonSummary,
       isSensitive: isSensitive ?? this.isSensitive,
+      isSupportedByMe: isSupportedByMe ?? this.isSupportedByMe,
     );
   }
 
@@ -224,6 +228,7 @@ class Menfess {
     'createdAt': createdAt.toIso8601String(),
     'reportReasonSummary': reportReasonSummary,
     'isSensitive': isSensitive,
+    'isSupportedByMe': isSupportedByMe,
   };
 
   factory Menfess.fromJson(Map<String, dynamic> json) => Menfess(
@@ -241,6 +246,7 @@ class Menfess {
     createdAt: DateTime.parse(json['createdAt'] as String),
     reportReasonSummary: json['reportReasonSummary'] as String?,
     isSensitive: json['isSensitive'] as bool? ?? false,
+    isSupportedByMe: json['isSupportedByMe'] as bool? ?? false,
   );
 }
 

@@ -17,6 +17,7 @@ class AppDatabase {
   final List<Menfess> _webMenfess = [];
   final List<Disposition> _webDispositions = [];
   final List<InstagramPost> _webInstagramPosts = [];
+  final Set<String> _supportedMenfessIds = {};
 
   Future<Database?> get database async {
     if (kIsWeb || _isWebFallback) return null;
@@ -672,21 +673,44 @@ class AppDatabase {
   }
 
   Future<void> toggleSupport(String id) async {
+    final isSupported = _supportedMenfessIds.contains(id);
+    if (isSupported) {
+      _supportedMenfessIds.remove(id);
+    } else {
+      _supportedMenfessIds.add(id);
+    }
+    final shouldAdd = !isSupported;
+
     final db = await database;
     if (db == null || _isWebFallback) {
       _initWebFallback();
       final idx = _webMenfess.indexWhere((m) => m.id == id);
       if (idx != -1) {
         final current = _webMenfess[idx];
-        _webMenfess[idx] = current.copyWith(supportCount: current.supportCount + 1);
+        final nextCount = shouldAdd
+            ? current.supportCount + 1
+            : (current.supportCount - 1).clamp(0, 999999);
+        _webMenfess[idx] = current.copyWith(
+          supportCount: nextCount,
+          isSupportedByMe: shouldAdd,
+        );
       }
       return;
     }
-    await db.rawUpdate('''
-      UPDATE ${DatabaseConstants.tableMenfess}
-      SET ${DatabaseConstants.colMenfessSupportCount} = ${DatabaseConstants.colMenfessSupportCount} + 1
-      WHERE ${DatabaseConstants.colMenfessId} = ?
-    ''', [id]);
+
+    if (shouldAdd) {
+      await db.rawUpdate('''
+        UPDATE ${DatabaseConstants.tableMenfess}
+        SET ${DatabaseConstants.colMenfessSupportCount} = ${DatabaseConstants.colMenfessSupportCount} + 1
+        WHERE ${DatabaseConstants.colMenfessId} = ?
+      ''', [id]);
+    } else {
+      await db.rawUpdate('''
+        UPDATE ${DatabaseConstants.tableMenfess}
+        SET ${DatabaseConstants.colMenfessSupportCount} = MAX(0, ${DatabaseConstants.colMenfessSupportCount} - 1)
+        WHERE ${DatabaseConstants.colMenfessId} = ?
+      ''', [id]);
+    }
   }
 
   Future<void> reportMenfess(String id, String reason) async {
@@ -995,6 +1019,8 @@ class AppDatabase {
       reportReasonSummary:
           map[DatabaseConstants.colMenfessReportReasonSummary] as String?,
       isSensitive: (map[DatabaseConstants.colMenfessIsSensitive] as int) == 1,
+      isSupportedByMe:
+          _supportedMenfessIds.contains(map[DatabaseConstants.colMenfessId]),
     );
   }
 

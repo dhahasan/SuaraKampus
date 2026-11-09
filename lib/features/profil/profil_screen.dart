@@ -210,6 +210,13 @@ class ProfilScreen extends ConsumerWidget {
                 width: double.infinity,
                 height: 44,
                 onPressed: () {
+                  ref.read(currentUserProvider.notifier).logout();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Anda telah berhasil keluar dari akun.'),
+                      backgroundColor: AppColors.primary,
+                    ),
+                  );
                   context.go('/login-glass');
                 },
               ),

@@ -13,6 +13,8 @@ import '../../features/feed/feed_screen.dart';
 import '../../features/profil/profil_screen.dart';
 import '../../features/riwayat/riwayat_screen.dart';
 import '../../features/splash/splash_screen.dart';
+import '../data/mock_repository.dart';
+import '../models/app_models.dart';
 import 'admin_shell_wrapper.dart';
 import 'student_shell_wrapper.dart';
 
@@ -23,11 +25,88 @@ final GlobalKey<NavigatorState> _studentShellNavigatorKey =
 final GlobalKey<NavigatorState> _adminShellNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'adminShell');
 
+/// Rute-rute yang dapat diakses tanpa login
+const _publicRoutes = ['/', '/login-glass', '/auth/masuk', '/auth/daftar'];
+
+/// Rute-rute yang hanya boleh diakses user student yang sudah login
+const _studentProtectedPrefixes = ['/feed', '/compose', '/riwayat', '/profil'];
+
+/// Rute-rute yang hanya boleh diakses admin yang sudah login
+const _adminProtectedPrefixes = ['/admin'];
+
+/// Memeriksa apakah user sudah login (bukan guest)
+bool _isLoggedIn(AppUser user) =>
+    user.id != 'guest' && user.email.isNotEmpty;
+
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final userListenable = ValueNotifier<AppUser>(
+    const AppUser(
+      id: 'guest',
+      email: '',
+      role: UserRole.student,
+      verificationStatus: VerificationStatus.pending,
+      monthlyQuotaUsed: 0,
+      monthlyQuotaMax: 5,
+    ),
+  );
+
+  // Pantau perubahan user agar router bisa refresh redirect
+  ref.listen<AppUser>(currentUserProvider, (_, next) {
+    userListenable.value = next;
+  });
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
     debugLogDiagnostics: false,
+    refreshListenable: userListenable,
+
+    /// ─── ROUTE GUARD ──────────────────────────────────────────────────────
+    /// Jika user belum login dan mencoba akses halaman yang dilindungi,
+    /// redirect ke halaman login.
+    redirect: (context, state) {
+      final user = userListenable.value;
+      final loggedIn = _isLoggedIn(user);
+      final location = state.matchedLocation;
+
+      // Halaman publik: boleh diakses kapan saja
+      final isPublicRoute = _publicRoutes.any((r) => location == r);
+
+      // Halaman student yang dilindungi
+      final isStudentRoute = _studentProtectedPrefixes
+          .any((prefix) => location.startsWith(prefix));
+
+      // Halaman admin yang dilindungi
+      final isAdminRoute = _adminProtectedPrefixes
+          .any((prefix) => location.startsWith(prefix));
+
+      // Belum login → paksa ke halaman login jika bukan halaman publik
+      if (!loggedIn && (isStudentRoute || isAdminRoute)) {
+        return '/login-glass';
+      }
+
+      // Sudah login sebagai student → tidak boleh akses admin
+      if (loggedIn && user.role == UserRole.student && isAdminRoute) {
+        return '/feed';
+      }
+
+      // Sudah login sebagai admin → tidak boleh akses student area
+      if (loggedIn && user.role == UserRole.admin && isStudentRoute) {
+        return '/admin/moderasi';
+      }
+
+      // Sudah login tapi masih di halaman login/splash → redirect ke halaman utama
+      if (loggedIn && (isPublicRoute || location == '/')) {
+        if (user.role == UserRole.admin) {
+          return '/admin/moderasi';
+        }
+        return '/feed';
+      }
+
+      return null; // Tidak ada redirect
+    },
+    // ────────────────────────────────────────────────────────────────────────
+
     routes: [
       // Splash
       GoRoute(
@@ -61,7 +140,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             const VerifikasiAkunScreen(isRejectedInitial: false),
       ),
 
-      // Student Shell Navigation (4 tabs)
+      // Student Shell Navigation (4 tabs) — dilindungi route guard
       ShellRoute(
         navigatorKey: _studentShellNavigatorKey,
         builder: (context, state, child) {
@@ -95,7 +174,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // Admin Shell Navigation (4 tabs)
+      // Admin Shell Navigation (4 tabs) — dilindungi route guard
       ShellRoute(
         navigatorKey: _adminShellNavigatorKey,
         builder: (context, state, child) {

@@ -364,67 +364,81 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                         SectionHeader(
                           title: 'Rekomendasi Topik ${_selectedCategory.label}',
                           actionText: 'Lihat Semua',
-                          onActionTap: () {},
+                          onActionTap: () {
+                            setState(() {
+                              _selectedCategory = MenfessCategory.semua;
+                            });
+                          },
                         ),
                         const SizedBox(height: 6),
                         Row(
                           children: [
                             Expanded(
-                              child: AppCard(
-                                padding: const EdgeInsets.all(12),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: const [
-                                    Icon(Icons.ac_unit,
-                                        size: 16, color: AppColors.primary),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      'AC Ruang Kuliah',
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textPrimary,
+                              child: InkWell(
+                                onTap: () => context.go('/compose'),
+                                borderRadius: BorderRadius.circular(12),
+                                child: AppCard(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: const [
+                                      Icon(Icons.ac_unit,
+                                          size: 16, color: AppColors.primary),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'AC Ruang Kuliah',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.textPrimary,
+                                        ),
                                       ),
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      '14 keluhan terselesaikan',
-                                      style: TextStyle(
-                                        fontSize: 9.5,
-                                        color: AppColors.textSecondary,
+                                      SizedBox(height: 2),
+                                      Text(
+                                        '14 keluhan terselesaikan',
+                                        style: TextStyle(
+                                          fontSize: 9.5,
+                                          color: AppColors.textSecondary,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: AppCard(
-                                padding: const EdgeInsets.all(12),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: const [
-                                    Icon(Icons.local_parking,
-                                        size: 16, color: AppColors.primary),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      'Kerapian Parkir',
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textPrimary,
+                              child: InkWell(
+                                onTap: () => context.go('/compose'),
+                                borderRadius: BorderRadius.circular(12),
+                                child: AppCard(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: const [
+                                      Icon(Icons.local_parking,
+                                          size: 16, color: AppColors.primary),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'Kerapian Parkir',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.textPrimary,
+                                        ),
                                       ),
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      '28 respons fakultas',
-                                      style: TextStyle(
-                                        fontSize: 9.5,
-                                        color: AppColors.textSecondary,
+                                      SizedBox(height: 2),
+                                      Text(
+                                        '28 respons fakultas',
+                                        style: TextStyle(
+                                          fontSize: 9.5,
+                                          color: AppColors.textSecondary,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -508,31 +522,43 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                                           .toggleSupport(menfess.id);
                                     },
                                     borderRadius: BorderRadius.circular(6),
-                                    child: Container(
+                                    child: AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 200),
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 10, vertical: 5),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFF0F7FA),
+                                        color: menfess.isSupportedByMe
+                                            ? AppColors.primary
+                                            : const Color(0xFFF0F7FA),
                                         borderRadius: BorderRadius.circular(6),
                                         border: Border.all(
-                                            color: AppColors.borderCard,
+                                            color: menfess.isSupportedByMe
+                                                ? AppColors.primary
+                                                : AppColors.borderCard,
                                             width: 0.8),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const Icon(
-                                            Icons.thumb_up_alt_outlined,
+                                          Icon(
+                                            menfess.isSupportedByMe
+                                                ? Icons.thumb_up_rounded
+                                                : Icons.thumb_up_alt_outlined,
                                             size: 12,
-                                            color: AppColors.primary,
+                                            color: menfess.isSupportedByMe
+                                                ? Colors.white
+                                                : AppColors.primary,
                                           ),
                                           const SizedBox(width: 5),
                                           Text(
                                             'Saya juga  ${menfess.supportCount}',
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 10.5,
                                               fontWeight: FontWeight.w600,
-                                              color: AppColors.primary,
+                                              color: menfess.isSupportedByMe
+                                                  ? Colors.white
+                                                  : AppColors.primary,
                                             ),
                                           ),
                                         ],

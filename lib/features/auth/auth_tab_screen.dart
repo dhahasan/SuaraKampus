@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/data/auth_service.dart';
 import '../../core/data/mock_repository.dart';
 import '../../core/models/app_models.dart';
 import '../../core/widgets/app_button.dart';
@@ -23,8 +24,10 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
   // Masuk controllers
   final _masukEmailController =
       TextEditingController(text: 'mahasiswa@kampus.ac.id');
-  final _masukPasswordController = TextEditingController(text: 'rahasia123');
+  final _masukPasswordController = TextEditingController(text: 'kampus123');
   bool _masukObscure = true;
+  String? _masukErrorMessage;
+  bool _isMasukLoading = false;
 
   // Daftar controllers
   final _daftarEmailController =
@@ -35,6 +38,8 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
   bool _daftarObscure = true;
   bool _daftarConfirmObscure = true;
   bool _agreementChecked = true;
+  String? _daftarErrorMessage;
+  bool _isDaftarLoading = false;
 
   @override
   void initState() {
@@ -52,46 +57,102 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
     super.dispose();
   }
 
-  void _submitMasuk() {
-    final email = _masukEmailController.text.trim();
-    if (email.contains('admin')) {
-      ref.read(currentUserProvider.notifier).setUser(
-            AppUser(
-              id: 'admin_1',
-              email: email,
-              role: UserRole.admin,
-              verificationStatus: VerificationStatus.verified,
-            ),
-          );
+  Future<void> _submitMasuk() async {
+    final email = _masukEmailController.text;
+    final password = _masukPasswordController.text;
+
+    setState(() {
+      _masukErrorMessage = null;
+      _isMasukLoading = true;
+    });
+
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+
+    final result = AuthService.instance.validateLogin(
+      email: email,
+      password: password,
+    );
+
+    if (!result.isSuccess) {
+      setState(() {
+        _masukErrorMessage = result.errorMessage;
+        _isMasukLoading = false;
+      });
+      return;
+    }
+
+    setState(() => _isMasukLoading = false);
+
+    final user = result.user!;
+    ref.read(currentUserProvider.notifier).setUser(user);
+
+    if (user.role == UserRole.admin) {
       context.go('/admin/moderasi');
     } else {
-      ref.read(currentUserProvider.notifier).setUser(
-            AppUser(
-              id: 'user_1',
-              email: email.isEmpty ? 'mahasiswa@kampus.ac.id' : email,
-              role: UserRole.student,
-              verificationStatus: VerificationStatus.verified,
-              monthlyQuotaUsed: 2,
-              monthlyQuotaMax: 5,
-            ),
-          );
       context.go('/feed');
     }
   }
 
-  void _submitDaftar() {
-    final email = _daftarEmailController.text.trim();
-    ref.read(currentUserProvider.notifier).setUser(
-          AppUser(
-            id: 'user_new',
-            email: email.isEmpty ? '2110511042@mahasiswa.kampus.ac.id' : email,
-            role: UserRole.student,
-            verificationStatus: VerificationStatus.pending,
-            monthlyQuotaUsed: 0,
-            monthlyQuotaMax: 5,
-          ),
-        );
+  Future<void> _submitDaftar() async {
+    final email = _daftarEmailController.text;
+    final password = _daftarPasswordController.text;
+    final confirmPassword = _daftarConfirmPasswordController.text;
+
+    setState(() {
+      _daftarErrorMessage = null;
+      _isDaftarLoading = true;
+    });
+
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+
+    final result = AuthService.instance.register(
+      email: email,
+      password: password,
+      confirmPassword: confirmPassword,
+      agreementChecked: _agreementChecked,
+    );
+
+    if (!result.isSuccess) {
+      setState(() {
+        _daftarErrorMessage = result.errorMessage;
+        _isDaftarLoading = false;
+      });
+      return;
+    }
+
+    setState(() => _isDaftarLoading = false);
+
+    final user = result.user!;
+    ref.read(currentUserProvider.notifier).setUser(user);
     context.go('/auth/verifikasi-menunggu');
+  }
+
+  void _showPasswordHelpDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text(
+          'Bantuan Kata Sandi',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: const Text(
+          'Untuk mengatur ulang kata sandi SSO Kampus, hubungi helpdesk IT kampus melalui it-helpdesk@kampus.ac.id atau gunakan akun demo yang telah disediakan.',
+          style: TextStyle(fontSize: 12),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Mengerti',
+                style: TextStyle(color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -108,40 +169,52 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
             children: [
               // Header Kiri
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.forum_rounded,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
                     children: [
-                      Text(
-                        'SuaraKampus',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.forum_rounded,
+                          color: Colors.white,
+                          size: 18,
                         ),
                       ),
-                      Text(
-                        'Portal Aspirasi Mahasiswa',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: AppColors.textSecondary,
-                        ),
+                      const SizedBox(width: 10),
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'SuaraKampus',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            'Portal Aspirasi Mahasiswa',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
+                  ),
+                  TextButton.icon(
+                    onPressed: () => context.go('/login-glass'),
+                    icon: const Icon(Icons.style_outlined,
+                        size: 14, color: AppColors.primary),
+                    label: const Text('Tampilan Glass',
+                        style: TextStyle(fontSize: 11, color: AppColors.primary)),
                   ),
                 ],
               ),
@@ -160,7 +233,12 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                   children: [
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => setState(() => _selectedTab = 0),
+                        onTap: () {
+                          setState(() {
+                            _selectedTab = 0;
+                            _masukErrorMessage = null;
+                          });
+                        },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           decoration: BoxDecoration(
@@ -195,7 +273,12 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                     ),
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => setState(() => _selectedTab = 1),
+                        onTap: () {
+                          setState(() {
+                            _selectedTab = 1;
+                            _daftarErrorMessage = null;
+                          });
+                        },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           decoration: BoxDecoration(
@@ -267,7 +350,7 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: GestureDetector(
-                    onTap: () {},
+                    onTap: _showPasswordHelpDialog,
                     child: const Text(
                       'Lupa sandi?',
                       style: TextStyle(
@@ -278,12 +361,47 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                     ),
                   ),
                 ),
+
+                // Error message banner on wrong password or email
+                if (_masukErrorMessage != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerBg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppColors.dangerBorder,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline,
+                            size: 14, color: AppColors.dangerRed),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _masukErrorMessage!,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.dangerRed,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 const SizedBox(height: 20),
                 AppButton(
-                  text: 'Masuk',
+                  text: _isMasukLoading ? 'Memeriksa...' : 'Masuk',
                   width: double.infinity,
                   height: 44,
-                  onPressed: _submitMasuk,
+                  onPressed: _isMasukLoading ? null : _submitMasuk,
                 ),
                 const SizedBox(height: 18),
                 const InfoBanner(
@@ -293,6 +411,71 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                   type: InfoBannerType.info,
                 ),
                 const SizedBox(height: 16),
+
+                // Demo accounts quick filler
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.borderCard),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Akun Demo (Klik untuk isi cepat):',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          ActionChip(
+                            label: const Text('Mahasiswa (kampus123)',
+                                style: TextStyle(fontSize: 10)),
+                            backgroundColor: AppColors.infoBg,
+                            onPressed: () {
+                              _masukEmailController.text =
+                                  'mahasiswa@kampus.ac.id';
+                              _masukPasswordController.text = 'kampus123';
+                              setState(() => _masukErrorMessage = null);
+                            },
+                          ),
+                          ActionChip(
+                            label: const Text('NIM Mhs (kampus123)',
+                                style: TextStyle(fontSize: 10)),
+                            backgroundColor: AppColors.infoBg,
+                            onPressed: () {
+                              _masukEmailController.text =
+                                  '2110511042@mahasiswa.kampus.ac.id';
+                              _masukPasswordController.text = 'kampus123';
+                              setState(() => _masukErrorMessage = null);
+                            },
+                          ),
+                          ActionChip(
+                            label: const Text('Admin (admin123)',
+                                style: TextStyle(fontSize: 10)),
+                            backgroundColor: const Color(0xFFFFF1D6),
+                            onPressed: () {
+                              _masukEmailController.text =
+                                  'admin@kampus.ac.id';
+                              _masukPasswordController.text = 'admin123';
+                              setState(() => _masukErrorMessage = null);
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
                 Center(
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -305,7 +488,12 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () => setState(() => _selectedTab = 1),
+                        onTap: () {
+                          setState(() {
+                            _selectedTab = 1;
+                            _daftarErrorMessage = null;
+                          });
+                        },
                         child: const Text(
                           'Daftar sekarang',
                           style: TextStyle(
@@ -328,7 +516,7 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Gunakan domain email kampus yang valid',
+                  'Gunakan domain email kampus yang valid (mengandung .ac.id)',
                   style: TextStyle(
                     fontSize: 9.5,
                     color: AppColors.textSecondary,
@@ -337,7 +525,7 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                 const SizedBox(height: 14),
                 AppTextField(
                   label: 'Kata Sandi',
-                  hintText: 'password1234',
+                  hintText: 'Minimal 8 karakter',
                   controller: _daftarPasswordController,
                   obscureText: _daftarObscure,
                   suffixIcon: IconButton(
@@ -358,7 +546,7 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                 const SizedBox(height: 14),
                 AppTextField(
                   label: 'Ulangi Kata Sandi',
-                  hintText: 'password1234',
+                  hintText: 'Ulangi kata sandi di atas',
                   controller: _daftarConfirmPasswordController,
                   obscureText: _daftarConfirmObscure,
                   suffixIcon: IconButton(
@@ -409,12 +597,49 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                     ),
                   ],
                 ),
+
+                // Error message banner on registration error
+                if (_daftarErrorMessage != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerBg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppColors.dangerBorder,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline,
+                            size: 14, color: AppColors.dangerRed),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _daftarErrorMessage!,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.dangerRed,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 const SizedBox(height: 18),
                 AppButton(
-                  text: 'Daftar',
+                  text: _isDaftarLoading ? 'Mendaftarkan...' : 'Daftar',
                   width: double.infinity,
                   height: 44,
-                  onPressed: _agreementChecked ? _submitDaftar : null,
+                  onPressed: _agreementChecked && !_isDaftarLoading
+                      ? _submitDaftar
+                      : null,
                 ),
                 const SizedBox(height: 14),
                 const InfoBanner(
@@ -435,7 +660,12 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () => setState(() => _selectedTab = 0),
+                        onTap: () {
+                          setState(() {
+                            _selectedTab = 0;
+                            _masukErrorMessage = null;
+                          });
+                        },
                         child: const Text(
                           'Masuk di sini',
                           style: TextStyle(

@@ -246,6 +246,69 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                     ),
                     const SizedBox(height: 14),
 
+                    // Banner Status Verifikasi KTM jika belum verified
+                    if (!user.isVerified) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF9E6),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFFF0D58C),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.verified_user_outlined,
+                              color: Color(0xFFB45309),
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'KTM Belum Terverifikasi',
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFB45309),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'Sesuai aturan kampus, hanya mahasiswa dengan KTM terverifikasi yang dapat menulis aspirasi.',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      color: Color(0xFF92400E),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  GestureDetector(
+                                    onTap: () =>
+                                        context.go('/auth/verifikasi-menunggu'),
+                                    child: const Text(
+                                      'Unggah Foto KTM Sekarang →',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
                     // VARIAN 1: KUOTA BULAN INI HABIS
                     if (isQuotaHabis) ...[
                       Container(
@@ -621,11 +684,16 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               child: SafeArea(
                 top: false,
                 child: AppButton(
-                  text: 'Kirim menfess',
-                  icon: Icons.send_rounded,
+                  text: !user.isVerified
+                      ? 'Menunggu Verifikasi KTM'
+                      : (isQuotaHabis ? 'Kuota Habis' : 'Kirim menfess'),
+                  icon: !user.isVerified
+                      ? Icons.lock_outline
+                      : Icons.send_rounded,
                   width: double.infinity,
                   height: 44,
-                  onPressed: isQuotaHabis ? null : _submit,
+                  onPressed:
+                      (isQuotaHabis || !user.isVerified) ? null : _submit,
                 ),
               ),
             ),

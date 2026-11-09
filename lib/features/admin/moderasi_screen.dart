@@ -245,9 +245,20 @@ class _ModerasiScreenState extends ConsumerState<ModerasiScreen> {
                             ),
                           ),
                           GestureDetector(
-                            onTap: () {},
+                            onTap: () {
+                              ref
+                                  .read(menfessProvider.notifier)
+                                  .approveAllPending();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'Semua menfess pending berhasil diloloskan secara serentak.'),
+                                  backgroundColor: AppColors.successGreen,
+                                ),
+                              );
+                            },
                             child: const Text(
-                              'Pilih Semua',
+                              'Loloskan Semua',
                               style: TextStyle(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.bold,

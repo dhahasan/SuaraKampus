@@ -292,6 +292,17 @@ class CurrentUserNotifier extends StateNotifier<AppUser> {
       _repo.saveUser(state);
     }
   }
+
+  void logout() {
+    state = const AppUser(
+      id: 'guest',
+      email: '',
+      role: UserRole.student,
+      verificationStatus: VerificationStatus.pending,
+      monthlyQuotaUsed: 0,
+      monthlyQuotaMax: 5,
+    );
+  }
 }
 
 final currentUserProvider =
@@ -346,7 +357,15 @@ class MenfessNotifier extends StateNotifier<List<Menfess>> {
   void toggleSupport(String id) {
     state = [
       for (final m in state)
-        if (m.id == id) m.copyWith(supportCount: m.supportCount + 1) else m
+        if (m.id == id)
+          m.copyWith(
+            supportCount: m.isSupportedByMe
+                ? (m.supportCount - 1).clamp(0, 999999)
+                : m.supportCount + 1,
+            isSupportedByMe: !m.isSupportedByMe,
+          )
+        else
+          m
     ];
     _repo.toggleSupport(id);
   }
@@ -405,6 +424,21 @@ class MenfessNotifier extends StateNotifier<List<Menfess>> {
   void deleteMenfess(String id) {
     state = state.where((m) => m.id != id).toList();
     _repo.deleteMenfess(id);
+  }
+
+  void approveAllPending() {
+    state = [
+      for (final m in state)
+        if (m.status == MenfessStatus.pending)
+          m.copyWith(status: MenfessStatus.approved)
+        else
+          m
+    ];
+    for (final m in state) {
+      if (m.status == MenfessStatus.approved) {
+        _repo.approveMenfess(m.id);
+      }
+    }
   }
 }
 
@@ -497,8 +531,46 @@ class InstagramNotifier extends StateNotifier<List<InstagramPost>> {
     }
   }
 
-  void generateBatch() {
-    // Simulates generating fresh queue items
+  void deletePost(String id) {
+    state = state.where((p) => p.id != id).toList();
+  }
+
+  void updateCaption(String id, String newCaption) {
+    state = [
+      for (final post in state)
+        if (post.id == id) post.copyWith(caption: newCaption) else post
+    ];
+  }
+
+  void generateBatch(List<Menfess> approvedMenfess) {
+    final candidates = approvedMenfess
+        .where((m) => m.allowInstagram && !state.any((p) => p.menfessId == m.id))
+        .toList();
+    if (candidates.isEmpty) return;
+
+    final newPosts = <InstagramPost>[];
+    for (var i = 0;
+        i < candidates.length && state.length + newPosts.length < 8;
+        i++) {
+      final m = candidates[i];
+      final num = 85 + state.length + newPosts.length;
+      final post = InstagramPost(
+        id: 'ig_${DateTime.now().millisecondsSinceEpoch}_$i',
+        scheduleNumber: '#$num',
+        menfessId: m.id,
+        scheduledTimeText: 'Hari ini, ${17 + i}:00 WIB',
+        format: 'Single Post',
+        quoteText:
+            m.body.length > 80 ? '${m.body.substring(0, 80)}...' : m.body,
+        caption: '${m.body}\n\n#SuaraKampus #AspirasiMahasiswa',
+        facultyTag: m.category.label,
+        autoPublish: true,
+        status: 'Terjadwal',
+      );
+      newPosts.add(post);
+      _repo.addInstagramPost(post);
+    }
+    state = [...state, ...newPosts];
   }
 }
 

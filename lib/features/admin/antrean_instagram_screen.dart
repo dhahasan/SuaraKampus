@@ -171,7 +171,15 @@ class _AntreanInstagramScreenState
                               IconButton(
                                 icon: const Icon(Icons.refresh,
                                     size: 18, color: AppColors.textSecondary),
-                                onPressed: () {},
+                                onPressed: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'Sinkronisasi Instagram @suarakampus_official diperbarui.'),
+                                      backgroundColor: AppColors.primary,
+                                    ),
+                                  );
+                                },
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
                               ),
@@ -308,10 +316,14 @@ class _AntreanInstagramScreenState
                   width: double.infinity,
                   height: 44,
                   onPressed: () {
+                    final allMenfess = ref.read(menfessProvider);
+                    ref
+                        .read(instagramProvider.notifier)
+                        .generateBatch(allMenfess);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(
-                            'Batch feed berhasil digenerate dan dijadwalkan ke Instagram.'),
+                            'Batch feed baru berhasil digenerate dari menfess disetujui.'),
                         backgroundColor: AppColors.primary,
                       ),
                     );
@@ -523,7 +535,54 @@ class _InstagramPostCard extends ConsumerWidget {
                     IconButton(
                       icon: const Icon(Icons.edit_outlined,
                           size: 16, color: AppColors.textSecondary),
-                      onPressed: () {},
+                      onPressed: () {
+                        final editController =
+                            TextEditingController(text: post.caption);
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Edit Caption Instagram',
+                                style: TextStyle(
+                                    fontSize: 14, fontWeight: FontWeight.bold)),
+                            content: TextField(
+                              controller: editController,
+                              maxLines: 4,
+                              style: const TextStyle(fontSize: 12),
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                hintText: 'Tulis caption baru...',
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('Batal'),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                ),
+                                onPressed: () {
+                                  ref
+                                      .read(instagramProvider.notifier)
+                                      .updateCaption(
+                                          post.id, editController.text.trim());
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'Caption postingan berhasil diperbarui.'),
+                                      backgroundColor: AppColors.primary,
+                                    ),
+                                  );
+                                },
+                                child: const Text('Simpan',
+                                    style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
@@ -531,7 +590,18 @@ class _InstagramPostCard extends ConsumerWidget {
                     IconButton(
                       icon: const Icon(Icons.delete_outline,
                           size: 16, color: AppColors.textSecondary),
-                      onPressed: () {},
+                      onPressed: () {
+                        ref
+                            .read(instagramProvider.notifier)
+                            .deletePost(post.id);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content:
+                                Text('Postingan dihapus dari antrean Instagram.'),
+                            backgroundColor: AppColors.dangerRed,
+                          ),
+                        );
+                      },
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
