@@ -1,23 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'core/database/app_database.dart';
+
 import 'core/router/app_router.dart';
+import 'core/services/firebase_service.dart';
 import 'core/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    // Initialize SQLite database
-    await AppDatabase.instance.init();
-  } catch (e, stack) {
-    debugPrint('Database initialization notice: $e\n$stack');
-  }
 
-  runApp(
-    const ProviderScope(
-      child: SuaraKampusApp(),
-    ),
-  );
+  // Inisialisasi Firebase Database (Auth, Firestore, Storage)
+  await FirebaseService().initialize();
+
+  runApp(const ProviderScope(child: SuaraKampusApp()));
 }
 
 class SuaraKampusApp extends ConsumerWidget {

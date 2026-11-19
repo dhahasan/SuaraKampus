@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "260205955090",
+    "project_id": "suara-kampus-c7364",
+    "storage_bucket": "suara-kampus-c7364.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:260205955090:android:faf25ebc9cd9bb3ead30cb",
+        "android_client_info": {
+          "package_name": "com.example.suara_kampus"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBd_Gx3SoauX11J_xInVCmydnQHGGDjSIE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

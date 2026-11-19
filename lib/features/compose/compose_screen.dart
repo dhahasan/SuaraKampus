@@ -53,28 +53,76 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     }
   }
 
-  void _submit() {
+  bool _isSubmitting = false;
+
+  Future<void> _submit() async {
     final text = _bodyController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Isi aspirasi atau keluhan tidak boleh kosong.')),
+      );
+      return;
+    }
 
-    ref.read(menfessProvider.notifier).addMenfess(
-          category: _selectedCategory,
-          body: text,
-          attachmentName: _attachedImage != null ? 'Lampiran_Bukti.jpg' : null,
-          allowInstagram: _allowInstagram,
-          isAnonymous: _isAnonymous,
-        );
+    final user = ref.read(currentUserProvider);
+    if (!user.isVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Akun Anda belum terverifikasi KTM. Silakan lengkapi verifikasi terlebih dahulu.'),
+          backgroundColor: AppColors.dangerRed,
+        ),
+      );
+      context.go('/auth/verifikasi-menunggu');
+      return;
+    }
 
-    ref.read(currentUserProvider.notifier).useQuota();
+    setState(() => _isSubmitting = true);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Menfess berhasil dikirim dan menunggu moderasi admin.'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
+    try {
+      String? uploadedUrl;
+      if (_attachedImage != null) {
+        final firebaseRepo = ref.read(firebaseRepositoryProvider);
+        if (firebaseRepo.isReady) {
+          uploadedUrl = await firebaseRepo.uploadImageFile(
+            _attachedImage!.path,
+            'menfess_attachments',
+          );
+        }
+      }
 
-    context.go('/feed');
+      await ref.read(menfessProvider.notifier).addMenfess(
+            category: _selectedCategory,
+            body: text,
+            attachmentName: _attachedImage?.name,
+            attachmentUrl: uploadedUrl,
+            allowInstagram: _allowInstagram,
+            isAnonymous: _isAnonymous,
+            userId: user.id,
+          );
+
+      ref.read(currentUserProvider.notifier).useQuota();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Menfess berhasil disimpan ke Firebase dan menunggu kurasi admin.'),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+
+      context.go('/feed');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mengirim: $e'),
+          backgroundColor: AppColors.dangerRed,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
@@ -692,8 +740,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                       : Icons.send_rounded,
                   width: double.infinity,
                   height: 44,
-                  onPressed:
-                      (isQuotaHabis || !user.isVerified) ? null : _submit,
+                  isLoading: _isSubmitting,
+                  onPressed: (isQuotaHabis || _isSubmitting) ? null : _submit,
                 ),
               ),
             ),

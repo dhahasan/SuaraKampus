@@ -346,6 +346,37 @@ class Disposition {
       logs: logs ?? this.logs,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'ticketCode': ticketCode,
+    'menfessId': menfessId,
+    'unit': unit,
+    'unitLocation': unitLocation,
+    'status': status,
+    'estimateRemaining': estimateRemaining,
+    'isOverdue': isOverdue,
+    'menfessQuote': menfessQuote,
+    'correspondenceDetail': correspondenceDetail,
+    'logs': logs.map((l) => l.toJson()).toList(),
+  };
+
+  factory Disposition.fromJson(Map<String, dynamic> json) => Disposition(
+    id: json['id'] as String,
+    ticketCode: json['ticketCode'] as String,
+    menfessId: json['menfessId'] as String,
+    unit: json['unit'] as String,
+    unitLocation: json['unitLocation'] as String,
+    status: json['status'] as String,
+    estimateRemaining: json['estimateRemaining'] as String,
+    isOverdue: json['isOverdue'] as bool? ?? false,
+    menfessQuote: json['menfessQuote'] as String,
+    correspondenceDetail: json['correspondenceDetail'] as String?,
+    logs: (json['logs'] as List<dynamic>?)
+            ?.map((e) => DispositionLog.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const [],
+  );
 }
 
 @immutable
@@ -399,6 +430,32 @@ class InstagramPost {
       status: status ?? this.status,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'scheduleNumber': scheduleNumber,
+    'menfessId': menfessId,
+    'scheduledTimeText': scheduledTimeText,
+    'format': format,
+    'quoteText': quoteText,
+    'caption': caption,
+    'facultyTag': facultyTag,
+    'autoPublish': autoPublish,
+    'status': status,
+  };
+
+  factory InstagramPost.fromJson(Map<String, dynamic> json) => InstagramPost(
+    id: json['id'] as String,
+    scheduleNumber: json['scheduleNumber'] as String,
+    menfessId: json['menfessId'] as String,
+    scheduledTimeText: json['scheduledTimeText'] as String,
+    format: json['format'] as String,
+    quoteText: json['quoteText'] as String,
+    caption: json['caption'] as String,
+    facultyTag: json['facultyTag'] as String,
+    autoPublish: json['autoPublish'] as bool? ?? true,
+    status: json['status'] as String? ?? 'Terjadwal',
+  );
 }
 
 @immutable
@@ -412,6 +469,18 @@ class WeeklyTrend {
     required this.incoming,
     required this.resolved,
   });
+
+  Map<String, dynamic> toJson() => {
+    'week': week,
+    'incoming': incoming,
+    'resolved': resolved,
+  };
+
+  factory WeeklyTrend.fromJson(Map<String, dynamic> json) => WeeklyTrend(
+    week: json['week'] as String,
+    incoming: json['incoming'] as int? ?? 0,
+    resolved: json['resolved'] as int? ?? 0,
+  );
 }
 
 @immutable
@@ -425,6 +494,19 @@ class CategoryDistribution {
     required this.count,
     required this.percentage,
   });
+
+  Map<String, dynamic> toJson() => {
+    'categoryName': categoryName,
+    'count': count,
+    'percentage': percentage,
+  };
+
+  factory CategoryDistribution.fromJson(Map<String, dynamic> json) =>
+      CategoryDistribution(
+    categoryName: json['categoryName'] as String,
+    count: json['count'] as int? ?? 0,
+    percentage: (json['percentage'] as num?)?.toDouble() ?? 0.0,
+  );
 }
 
 @immutable
@@ -442,6 +524,23 @@ class UnitPerformance {
     required this.badgeText,
     required this.badgeType,
   });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'avgResponse': avgResponse,
+    'rate': rate,
+    'badgeText': badgeText,
+    'badgeType': badgeType,
+  };
+
+  factory UnitPerformance.fromJson(Map<String, dynamic> json) =>
+      UnitPerformance(
+    name: json['name'] as String,
+    avgResponse: json['avgResponse'] as String,
+    rate: (json['rate'] as num?)?.toDouble() ?? 0.0,
+    badgeText: json['badgeText'] as String,
+    badgeType: json['badgeType'] as String,
+  );
 }
 
 @immutable
@@ -471,4 +570,44 @@ class AnalyticsSummary {
     required this.categoryDistribution,
     required this.unitPerformance,
   });
+
+  Map<String, dynamic> toJson() => {
+    'total': total,
+    'totalTrend': totalTrend,
+    'resolvedRate': resolvedRate,
+    'resolvedRateNote': resolvedRateNote,
+    'avgResponseDays': avgResponseDays,
+    'avgResponseNote': avgResponseNote,
+    'violations': violations,
+    'violationsNote': violationsNote,
+    'weeklyTrend': weeklyTrend.map((w) => w.toJson()).toList(),
+    'categoryDistribution':
+        categoryDistribution.map((c) => c.toJson()).toList(),
+    'unitPerformance': unitPerformance.map((u) => u.toJson()).toList(),
+  };
+
+  factory AnalyticsSummary.fromJson(Map<String, dynamic> json) =>
+      AnalyticsSummary(
+    total: json['total'] as int? ?? 0,
+    totalTrend: json['totalTrend'] as String? ?? '',
+    resolvedRate: (json['resolvedRate'] as num?)?.toDouble() ?? 0.0,
+    resolvedRateNote: json['resolvedRateNote'] as String? ?? '',
+    avgResponseDays: (json['avgResponseDays'] as num?)?.toDouble() ?? 0.0,
+    avgResponseNote: json['avgResponseNote'] as String? ?? '',
+    violations: json['violations'] as int? ?? 0,
+    violationsNote: json['violationsNote'] as String? ?? '',
+    weeklyTrend: (json['weeklyTrend'] as List<dynamic>?)
+            ?.map((e) => WeeklyTrend.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const [],
+    categoryDistribution: (json['categoryDistribution'] as List<dynamic>?)
+            ?.map((e) =>
+                CategoryDistribution.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const [],
+    unitPerformance: (json['unitPerformance'] as List<dynamic>?)
+            ?.map((e) => UnitPerformance.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const [],
+  );
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/constants/app_colors.dart';
-import '../../core/data/auth_service.dart';
 import '../../core/data/mock_repository.dart';
 import '../../core/models/app_models.dart';
 import '../../core/widgets/app_button.dart';
@@ -22,25 +22,26 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
   late int _selectedTab;
 
   // Masuk controllers
-  final _masukEmailController =
-      TextEditingController(text: 'mahasiswa@kampus.ac.id');
+  final _masukEmailController = TextEditingController(
+    text: 'mahasiswa@kampus.ac.id',
+  );
   final _masukPasswordController = TextEditingController(text: 'kampus123');
   bool _masukObscure = true;
   String? _masukErrorMessage;
-  bool _isMasukLoading = false;
 
   // Daftar controllers
-  final _daftarEmailController =
-      TextEditingController(text: '2110511042@mahasiswa.kampus.ac.id');
+  final _daftarEmailController = TextEditingController(
+    text: '2110511042@mahasiswa.kampus.ac.id',
+  );
   final _daftarPasswordController = TextEditingController(text: 'password1234');
-  final _daftarConfirmPasswordController =
-      TextEditingController(text: 'password1234');
+  final _daftarConfirmPasswordController = TextEditingController(
+    text: 'password1234',
+  );
   bool _daftarObscure = true;
   bool _daftarConfirmObscure = true;
   bool _agreementChecked = true;
+  bool _isLoading = false;
   String? _daftarErrorMessage;
-  bool _isDaftarLoading = false;
-
   @override
   void initState() {
     super.initState();
@@ -58,75 +59,98 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
   }
 
   Future<void> _submitMasuk() async {
-    final email = _masukEmailController.text;
-    final password = _masukPasswordController.text;
+    final email = _masukEmailController.text.trim();
+    final password = _masukPasswordController.text.trim();
 
-    setState(() {
-      _masukErrorMessage = null;
-      _isMasukLoading = true;
-    });
-
-    await Future.delayed(const Duration(milliseconds: 300));
-    if (!mounted) return;
-
-    final result = AuthService.instance.validateLogin(
-      email: email,
-      password: password,
-    );
-
-    if (!result.isSuccess) {
-      setState(() {
-        _masukErrorMessage = result.errorMessage;
-        _isMasukLoading = false;
-      });
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Silakan masukkan email kampus Anda.')),
+      );
       return;
     }
 
-    setState(() => _isMasukLoading = false);
+    setState(() => _isLoading = true);
 
-    final user = result.user!;
-    ref.read(currentUserProvider.notifier).setUser(user);
+    try {
+      final success = await ref
+          .read(currentUserProvider.notifier)
+          .login(email, password);
 
-    if (user.role == UserRole.admin) {
-      context.go('/admin/moderasi');
-    } else {
-      context.go('/feed');
+      if (!mounted) return;
+
+      if (success) {
+        final user = ref.read(currentUserProvider);
+        if (user.role == UserRole.admin) {
+          context.go('/admin/moderasi');
+        } else {
+          context.go('/feed');
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login gagal: $e'),
+          backgroundColor: AppColors.dangerRed,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _submitDaftar() async {
-    final email = _daftarEmailController.text;
-    final password = _daftarPasswordController.text;
-    final confirmPassword = _daftarConfirmPasswordController.text;
+    final email = _daftarEmailController.text.trim();
+    final password = _daftarPasswordController.text.trim();
+    final confirmPassword = _daftarConfirmPasswordController.text.trim();
 
-    setState(() {
-      _daftarErrorMessage = null;
-      _isDaftarLoading = true;
-    });
-
-    await Future.delayed(const Duration(milliseconds: 300));
-    if (!mounted) return;
-
-    final result = AuthService.instance.register(
-      email: email,
-      password: password,
-      confirmPassword: confirmPassword,
-      agreementChecked: _agreementChecked,
-    );
-
-    if (!result.isSuccess) {
-      setState(() {
-        _daftarErrorMessage = result.errorMessage;
-        _isDaftarLoading = false;
-      });
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email dan kata sandi wajib diisi.')),
+      );
       return;
     }
 
-    setState(() => _isDaftarLoading = false);
+    if (password != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Konfirmasi kata sandi tidak cocok.'),
+          backgroundColor: AppColors.dangerRed,
+        ),
+      );
+      return;
+    }
 
-    final user = result.user!;
-    ref.read(currentUserProvider.notifier).setUser(user);
-    context.go('/auth/verifikasi-menunggu');
+    setState(() => _isLoading = true);
+
+    try {
+      final role = UserRole.student;
+      await ref
+          .read(currentUserProvider.notifier)
+          .register(email, password, role: role);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Pendaftaran berhasil! Silakan unggah KTM untuk verifikasi.',
+          ),
+          backgroundColor: AppColors.successGreen,
+        ),
+      );
+      context.go('/auth/verifikasi-menunggu');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pendaftaran gagal: $e'),
+          backgroundColor: AppColors.dangerRed,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _showPasswordHelpDialog() {
@@ -135,10 +159,7 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text(
           'Bantuan Kata Sandi',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
         ),
         content: const Text(
           'Untuk mengatur ulang kata sandi SSO Kampus, hubungi helpdesk IT kampus melalui it-helpdesk@kampus.ac.id atau gunakan akun demo yang telah disediakan.',
@@ -147,8 +168,10 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Mengerti',
-                style: TextStyle(color: AppColors.primary)),
+            child: const Text(
+              'Mengerti',
+              style: TextStyle(color: AppColors.primary),
+            ),
           ),
         ],
       ),
@@ -211,10 +234,15 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                   ),
                   TextButton.icon(
                     onPressed: () => context.go('/login-glass'),
-                    icon: const Icon(Icons.style_outlined,
-                        size: 14, color: AppColors.primary),
-                    label: const Text('Tampilan Glass',
-                        style: TextStyle(fontSize: 11, color: AppColors.primary)),
+                    icon: const Icon(
+                      Icons.style_outlined,
+                      size: 14,
+                      color: AppColors.primary,
+                    ),
+                    label: const Text(
+                      'Tampilan Glass',
+                      style: TextStyle(fontSize: 11, color: AppColors.primary),
+                    ),
                   ),
                 ],
               ),
@@ -242,12 +270,16 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           decoration: BoxDecoration(
-                            color: !isDaftar ? Colors.white : Colors.transparent,
+                            color: !isDaftar
+                                ? Colors.white
+                                : Colors.transparent,
                             borderRadius: BorderRadius.circular(8),
                             boxShadow: !isDaftar
                                 ? [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.06),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.06,
+                                      ),
                                       blurRadius: 4,
                                       offset: const Offset(0, 1),
                                     ),
@@ -287,7 +319,9 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                             boxShadow: isDaftar
                                 ? [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.06),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.06,
+                                      ),
                                       blurRadius: 4,
                                       offset: const Offset(0, 1),
                                     ),
@@ -367,7 +401,9 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                   const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.dangerBg,
                       borderRadius: BorderRadius.circular(8),
@@ -378,8 +414,11 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline,
-                            size: 14, color: AppColors.dangerRed),
+                        const Icon(
+                          Icons.error_outline,
+                          size: 14,
+                          color: AppColors.dangerRed,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -398,15 +437,15 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
 
                 const SizedBox(height: 20),
                 AppButton(
-                  text: _isMasukLoading ? 'Memeriksa...' : 'Masuk',
+                  text: _isLoading ? 'Memeriksa...' : 'Masuk',
                   width: double.infinity,
                   height: 44,
-                  onPressed: _isMasukLoading ? null : _submitMasuk,
+                  isLoading: _isLoading,
+                  onPressed: _isLoading ? null : _submitMasuk,
                 ),
                 const SizedBox(height: 18),
                 const InfoBanner(
-                  message:
-                      'Privasi Terjaga: Namamu tidak ditampilkan di publik. Admin hanya melihat email yang kamu daftarkan.',
+                  message: 'Privasi Terjaga: Namamu tidak ditampilkan di publik. Admin hanya melihat email yang kamu daftarkan.',
                   icon: Icons.shield_outlined,
                   type: InfoBannerType.info,
                 ),
@@ -437,8 +476,10 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                         runSpacing: 4,
                         children: [
                           ActionChip(
-                            label: const Text('Mahasiswa (kampus123)',
-                                style: TextStyle(fontSize: 10)),
+                            label: const Text(
+                              'Mahasiswa (kampus123)',
+                              style: TextStyle(fontSize: 10),
+                            ),
                             backgroundColor: AppColors.infoBg,
                             onPressed: () {
                               _masukEmailController.text =
@@ -448,8 +489,10 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                             },
                           ),
                           ActionChip(
-                            label: const Text('NIM Mhs (kampus123)',
-                                style: TextStyle(fontSize: 10)),
+                            label: const Text(
+                              'NIM Mhs (kampus123)',
+                              style: TextStyle(fontSize: 10),
+                            ),
                             backgroundColor: AppColors.infoBg,
                             onPressed: () {
                               _masukEmailController.text =
@@ -459,12 +502,13 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                             },
                           ),
                           ActionChip(
-                            label: const Text('Admin (admin123)',
-                                style: TextStyle(fontSize: 10)),
+                            label: const Text(
+                              'Admin (admin123)',
+                              style: TextStyle(fontSize: 10),
+                            ),
                             backgroundColor: const Color(0xFFFFF1D6),
                             onPressed: () {
-                              _masukEmailController.text =
-                                  'admin@kampus.ac.id';
+                              _masukEmailController.text = 'admin@kampus.ac.id';
                               _masukPasswordController.text = 'admin123';
                               setState(() => _masukErrorMessage = null);
                             },
@@ -603,7 +647,9 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                   const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.dangerBg,
                       borderRadius: BorderRadius.circular(8),
@@ -614,8 +660,11 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline,
-                            size: 14, color: AppColors.dangerRed),
+                        const Icon(
+                          Icons.error_outline,
+                          size: 14,
+                          color: AppColors.dangerRed,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -634,10 +683,11 @@ class _AuthTabScreenState extends ConsumerState<AuthTabScreen> {
 
                 const SizedBox(height: 18),
                 AppButton(
-                  text: _isDaftarLoading ? 'Mendaftarkan...' : 'Daftar',
+                  text: _isLoading ? 'Mendaftarkan...' : 'Daftar',
                   width: double.infinity,
                   height: 44,
-                  onPressed: _agreementChecked && !_isDaftarLoading
+                  isLoading: _isLoading,
+                  onPressed: (_agreementChecked && !_isLoading)
                       ? _submitDaftar
                       : null,
                 ),

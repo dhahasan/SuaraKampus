@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/data/auth_service.dart';
 import '../../core/data/mock_repository.dart';
 import '../../core/models/app_models.dart';
 import '../../core/widgets/app_button.dart';
@@ -21,10 +20,9 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
   final _emailController =
       TextEditingController(text: 'mahasiswa@kampus.ac.id');
   final _passwordController = TextEditingController(text: 'kampus123');
-  bool _obscurePassword = true;
-  String? _errorMessage;
-  bool _isLoading = false;
-
+bool _obscurePassword = true;
+bool _isLoading = false;
+String? _errorMessage;
   @override
   void dispose() {
     _emailController.dispose();
@@ -33,41 +31,52 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
   }
 
   Future<void> _onLogin() async {
-    final email = _emailController.text;
-    final password = _passwordController.text;
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
 
-    setState(() {
-      _errorMessage = null;
-      _isLoading = true;
-    });
-
-    // Simulasi delay network kecil agar UX terasa nyata
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    if (!mounted) return;
-
-    final result = AuthService.instance.validateLogin(
-      email: email,
-      password: password,
-    );
-
-    if (!result.isSuccess) {
-      setState(() {
-        _errorMessage = result.errorMessage;
-        _isLoading = false;
-      });
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Silakan masukkan email kampus Anda.')),
+      );
       return;
     }
 
-    setState(() => _isLoading = false);
+    setState(() => _isLoading = true);
 
-    final user = result.user!;
-    ref.read(currentUserProvider.notifier).setUser(user);
+    try {
+      final success = await ref
+          .read(currentUserProvider.notifier)
+          .login(email, password.isEmpty ? 'password123' : password);
 
-    if (user.role == UserRole.admin) {
-      context.go('/admin/moderasi');
-    } else {
-      context.go('/feed');
+      if (!mounted) return;
+
+      if (success) {
+        final user = ref.read(currentUserProvider);
+        if (user.role == UserRole.admin) {
+          context.go('/admin/moderasi');
+        } else {
+          context.go('/feed');
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Login gagal. Periksa kembali email dan kata sandi Anda.'),
+            backgroundColor: AppColors.dangerRed,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Terjadi kendala autentikasi: $e'),
+          backgroundColor: AppColors.dangerRed,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -274,6 +283,7 @@ class _LoginGlassScreenState extends ConsumerState<LoginGlassScreen> {
                               text: _isLoading ? 'Memeriksa...' : 'MASUK',
                               width: double.infinity,
                               height: 44,
+                              isLoading: _isLoading,
                               onPressed: _isLoading ? null : _onLogin,
                             ),
                             const SizedBox(height: 16),

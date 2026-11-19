@@ -28,6 +28,7 @@ class _VerifikasiAkunScreenState extends ConsumerState<VerifikasiAkunScreen> {
   late bool _isRejected;
   XFile? _selectedImage;
   final ImagePicker _picker = ImagePicker();
+  bool _isUploading = false;
 
   @override
   void initState() {
@@ -45,18 +46,46 @@ class _VerifikasiAkunScreenState extends ConsumerState<VerifikasiAkunScreen> {
     }
   }
 
-  void _submit() {
-    // Set to pending or verified and proceed to Feed
-    ref.read(currentUserProvider.notifier).setVerification(
-          VerificationStatus.verified,
-        );
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Foto KTM berhasil dikirimkan ke tim verifikasi.'),
-        backgroundColor: AppColors.successGreen,
-      ),
-    );
-    context.go('/feed');
+  Future<void> _submit() async {
+    setState(() => _isUploading = true);
+
+    try {
+      String? uploadedKtmUrl;
+      if (_selectedImage != null) {
+        final firebaseRepo = ref.read(firebaseRepositoryProvider);
+        if (firebaseRepo.isReady) {
+          uploadedKtmUrl = await firebaseRepo.uploadImageFile(
+            _selectedImage!.path,
+            'users_ktm',
+          );
+        }
+      }
+
+      await ref.read(currentUserProvider.notifier).setVerification(
+            VerificationStatus.verified,
+            ktmUrl: uploadedKtmUrl,
+          );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Foto KTM berhasil disimpan dan akun telah diverifikasi.'),
+          backgroundColor: AppColors.successGreen,
+        ),
+      );
+      context.go('/feed');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mengunggah KTM: $e'),
+          backgroundColor: AppColors.dangerRed,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
   }
 
   @override
@@ -456,7 +485,8 @@ class _VerifikasiAkunScreenState extends ConsumerState<VerifikasiAkunScreen> {
                   text: _isRejected ? 'Unggah ulang' : 'Kirim KTM',
                   width: double.infinity,
                   height: 44,
-                  onPressed: _submit,
+                  isLoading: _isUploading,
+                  onPressed: _isUploading ? null : _submit,
                 ),
               ),
             ),

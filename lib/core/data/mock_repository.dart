@@ -1,18 +1,20 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_models.dart';
-import 'app_repository.dart';
-import 'sqlite_repository.dart';
+import 'database_repository.dart';
+import 'firebase_repository.dart';
 
 class MockDataRepository {
   // Current user state
   AppUser currentUser = const AppUser(
-    id: 'user_1',
-    email: '2110511042@mahasiswa.kampus.ac.id',
-    role: UserRole.student,
-    verificationStatus: VerificationStatus.verified,
-    monthlyQuotaUsed: 2,
-    monthlyQuotaMax: 5,
-  );
+  id: 'guest',
+  email: '',
+  role: UserRole.student,
+  verificationStatus: VerificationStatus.pending,
+  monthlyQuotaUsed: 0,
+  monthlyQuotaMax: 5,
+);
 
   // List of Menfess items
   List<Menfess> menfessList = [
@@ -233,67 +235,146 @@ class MockDataRepository {
 // RIVERPOD NOTIFIERS & PROVIDERS
 // -------------------------------------------------------------
 
-final appRepositoryProvider = Provider<AppRepository>((ref) {
-  return SqliteRepository();
-});
-
 final repositoryProvider = Provider<MockDataRepository>((ref) {
   return MockDataRepository();
 });
 
+final firebaseRepositoryProvider = Provider<FirebaseRepository>((ref) {
+  return FirebaseRepository();
+});
+
+final firebaseReadyProvider = Provider<bool>((ref) {
+  return ref.watch(firebaseRepositoryProvider).isReady;
+});
+
+// Tetap sediakan databaseRepositoryProvider untuk kompatibilitas
+final databaseRepositoryProvider = Provider<DatabaseRepository>((ref) {
+  return DatabaseRepository();
+});
+
+// Provider status koneksi database
+final databaseConnectionProvider =
+    FutureProvider<Map<String, dynamic>>((ref) async {
+  final firebaseRepo = ref.watch(firebaseRepositoryProvider);
+  if (firebaseRepo.isReady) {
+    return {
+      'status': 'FIREBASE_CONNECTED',
+      'database': 'Firebase Cloud Firestore',
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+  }
+  return {
+    'status': 'LOCAL_FALLBACK',
+    'database': 'Mock & Local In-Memory DB',
+    'timestamp': DateTime.now().toIso8601String(),
+  };
+});
+
 class CurrentUserNotifier extends StateNotifier<AppUser> {
-  final AppRepository _repo;
+  final FirebaseRepository _firebaseRepo;
 
-  CurrentUserNotifier(super.initial, this._repo) {
-    _initFromDb();
-  }
+  CurrentUserNotifier(super.initial, this._firebaseRepo);
 
-  Future<void> _initFromDb() async {
-    try {
-      final user = await _repo.getCurrentUser(state.id);
-      if (user != null) {
-        state = user;
-      }
-    } catch (_) {}
-  }
-
+  // Memperbarui user yang sedang aktif di state aplikasi.
   void setUser(AppUser user) {
     state = user;
-    _repo.saveUser(user);
   }
 
-  void toggleRole() {
-    if (state.role == UserRole.student) {
-      state = state.copyWith(role: UserRole.admin);
-    } else {
-      state = state.copyWith(role: UserRole.student);
+  Future<bool> login(String email, String password) async {
+  if (!_firebaseRepo.isReady) {
+    debugPrint('Firebase belum siap. Login dibatalkan.');
+    return false;
+  }
+
+  try {
+    final user = await _firebaseRepo.signIn(email, password);
+
+    if (user == null) {
+      debugPrint('Login gagal: profil pengguna tidak valid.');
+      return false;
     }
-    _repo.saveUser(state);
+
+    state = user;
+    return true;
+  } catch (e) {
+    debugPrint('Firebase login error: $e');
+    return false;
+  }
+}
+
+  Future<bool> register(
+  String email,
+  String password, {
+  UserRole role = UserRole.student,
+}) async {
+  if (!_firebaseRepo.isReady) {
+    debugPrint('Firebase belum siap. Registrasi dibatalkan.');
+    return false;
   }
 
-  void setVerification(VerificationStatus status, {String? rejectionReason}) {
+  if (role != UserRole.student) {
+    debugPrint('Registrasi hanya diperbolehkan untuk mahasiswa.');
+    return false;
+  }
+
+  try {
+    final user = await _firebaseRepo.signUp(
+      email,
+      password,
+      role: UserRole.student,
+    );
+
+    if (user == null) {
+      debugPrint('Registrasi gagal.');
+      return false;
+    }
+
+    state = user;
+    return true;
+  } catch (e) {
+    debugPrint('Firebase register error: $e');
+    return false;
+  }
+}
+
+  Future<void> setVerification(VerificationStatus status,
+      {String? rejectionReason, String? ktmUrl}) async {
     state = state.copyWith(
       verificationStatus: status,
       rejectionReason: rejectionReason,
+      ktmUrl: ktmUrl,
     );
-    _repo.saveUser(state);
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.updateVerificationStatus(
+        uid: state.id,
+        status: status,
+        rejectionReason: rejectionReason,
+        ktmUrl: ktmUrl,
+      );
+    }
   }
 
   void toggleQuota(bool isExhausted) {
     state = state.copyWith(
       monthlyQuotaUsed: isExhausted ? 5 : 2,
     );
-    _repo.saveUser(state);
   }
 
   void useQuota() {
     if (state.monthlyQuotaUsed < state.monthlyQuotaMax) {
       state = state.copyWith(monthlyQuotaUsed: state.monthlyQuotaUsed + 1);
-      _repo.saveUser(state);
+      if (_firebaseRepo.isReady) {
+        _firebaseRepo.useUserQuota(state.id);
+      }
     }
   }
 
-  void logout() {
+  Future<void> logout() async {
+  try {
+    await _firebaseRepo.signOut();
+  } catch (e) {
+    debugPrint('Firebase logout error: $e');
+  } finally {
     state = const AppUser(
       id: 'guest',
       email: '',
@@ -304,57 +385,97 @@ class CurrentUserNotifier extends StateNotifier<AppUser> {
     );
   }
 }
+}
 
 final currentUserProvider =
     StateNotifierProvider<CurrentUserNotifier, AppUser>((ref) {
   final repo = ref.watch(repositoryProvider);
-  final appRepo = ref.watch(appRepositoryProvider);
-  return CurrentUserNotifier(repo.currentUser, appRepo);
+  final firebaseRepo = ref.watch(firebaseRepositoryProvider);
+  return CurrentUserNotifier(repo.currentUser, firebaseRepo);
 });
 
 class MenfessNotifier extends StateNotifier<List<Menfess>> {
-  final AppRepository _repo;
+  final FirebaseRepository _firebaseRepo;
+  StreamSubscription<List<Menfess>>? _subscription;
 
-  MenfessNotifier(super.initial, this._repo) {
-    _initFromDb();
+  MenfessNotifier(super.initial, this._firebaseRepo) {
+    _initDataAndStream();
   }
 
-  Future<void> _initFromDb() async {
-    try {
-      final list = await _repo.getMenfessList();
-      if (list.isNotEmpty) {
-        state = list;
-      }
-    } catch (_) {}
+  void _initDataAndStream() {
+  if (_firebaseRepo.isReady) {
+    _subscription = _firebaseRepo.getMenfessStream().listen((firebaseList) {
+      state = firebaseList;
+    });
+  }
+}
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 
-  void addMenfess({
+  Future<void> fetchFromDatabase({
+  MenfessCategory? category,
+  MenfessStatus? status,
+}) async {
+  if (_firebaseRepo.isReady) {
+    final list = await _firebaseRepo.fetchMenfessList();
+    state = list;
+  }
+}
+
+  Future<void> addMenfess({
     required MenfessCategory category,
     required String body,
     String? attachmentName,
+    String? attachmentUrl,
     bool allowInstagram = true,
     bool isAnonymous = true,
-  }) {
+    String userId = 'user_1',
+  }) async {
     final newId = 'm_${DateTime.now().millisecondsSinceEpoch}';
     final code = 'MNF-${1045 + state.length + 1}';
+    final hasNames = RegExp(
+      r'\b(pak|bu|bapak|ibu|prof|dr)\s+[a-z]+',
+      caseSensitive: false,
+    ).hasMatch(body);
+
     final item = Menfess(
       id: newId,
       code: code,
       category: category,
       body: body,
       attachmentName: attachmentName,
+      attachmentUrl: attachmentUrl,
       status: MenfessStatus.pending,
       allowInstagram: allowInstagram,
       isAnonymous: isAnonymous,
       supportCount: 0,
       reportCount: 0,
+      isSensitive: hasNames,
+      reportReasonSummary: hasNames
+          ? 'Terdeteksi menyebut nama/inisial pihak civitas secara langsung.'
+          : null,
       createdAt: DateTime.now(),
     );
     state = [item, ...state];
-    _repo.addMenfess(item);
+
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.createMenfess(
+        userId: userId,
+        category: category,
+        body: body,
+        attachmentName: attachmentName,
+        attachmentUrl: attachmentUrl,
+        allowInstagram: allowInstagram,
+        isAnonymous: isAnonymous,
+      );
+    }
   }
 
-  void toggleSupport(String id) {
+  Future<void> toggleSupport(String id, {String? userId}) async {
     state = [
       for (final m in state)
         if (m.id == id)
@@ -367,77 +488,95 @@ class MenfessNotifier extends StateNotifier<List<Menfess>> {
         else
           m
     ];
-    _repo.toggleSupport(id);
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.toggleSupport(id);
+    }
   }
 
-  void reportMenfess(String id, String reason) {
+  Future<void> reportMenfess(String id, String reason) async {
     state = [
       for (final m in state)
         if (m.id == id)
           m.copyWith(
             reportCount: m.reportCount + 1,
             reportReasonSummary: reason,
+            isSensitive: (m.reportCount + 1) >= 3 ? true : m.isSensitive,
           )
         else
           m
     ];
-    _repo.reportMenfess(id, reason);
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.reportMenfess(id, reason);
+    }
   }
 
-  void approveMenfess(String id) {
+  Future<void> approveMenfess(String id) async {
     state = [
       for (final m in state)
         if (m.id == id) m.copyWith(status: MenfessStatus.approved) else m
     ];
-    _repo.approveMenfess(id);
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.moderateMenfess(id, 'approve');
+    }
   }
 
-  void rejectMenfess(String id) {
+  Future<void> rejectMenfess(String id) async {
     state = [
       for (final m in state)
         if (m.id == id) m.copyWith(status: MenfessStatus.rejected) else m
     ];
-    _repo.rejectMenfess(id);
-  }
-
-  void censorText(String id) {
-    String? updatedBody;
-    state = [
-      for (final m in state)
-        if (m.id == id) () {
-          final newBody = m.body.replaceAll(
-              RegExp(r'Pak [A-Za-z]+|Bu [A-Za-z]+'), 'Dosen ***');
-          updatedBody = newBody;
-          return m.copyWith(
-            body: newBody,
-            isSensitive: false,
-          );
-        }()
-        else
-          m
-    ];
-    if (updatedBody != null) {
-      _repo.censorText(id, updatedBody!);
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.moderateMenfess(id, 'reject');
     }
   }
 
-  void deleteMenfess(String id) {
-    state = state.where((m) => m.id != id).toList();
-    _repo.deleteMenfess(id);
-  }
-
-  void approveAllPending() {
+  Future<void> censorText(String id) async {
     state = [
       for (final m in state)
-        if (m.status == MenfessStatus.pending)
-          m.copyWith(status: MenfessStatus.approved)
+        if (m.id == id)
+          m.copyWith(
+            body: m.body.replaceAll(
+              RegExp(
+                r'\b(Pak|Bu|Bapak|Ibu)\s+[A-Za-z*]+',
+                caseSensitive: false,
+              ),
+              'Dosen ***',
+            ),
+            isSensitive: false,
+          )
         else
           m
     ];
-    for (final m in state) {
-      if (m.status == MenfessStatus.approved) {
-        _repo.approveMenfess(m.id);
-      }
+
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.moderateMenfess(id, 'censor');
+    }
+  }
+
+  Future<void> approveAllPending() async {
+  final pendingItems = state
+      .where((m) => m.status == MenfessStatus.pending)
+      .toList();
+
+  state = [
+    for (final m in state)
+      if (m.status == MenfessStatus.pending)
+        m.copyWith(status: MenfessStatus.approved)
+      else
+        m,
+  ];
+
+  if (_firebaseRepo.isReady) {
+    for (final m in pendingItems) {
+      await _firebaseRepo.moderateMenfess(m.id, 'approve');
+    }
+  }
+}
+
+  Future<void> deleteMenfess(String id) async {
+    state = state.where((m) => m.id != id).toList();
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.moderateMenfess(id, 'delete');
     }
   }
 }
@@ -445,35 +584,39 @@ class MenfessNotifier extends StateNotifier<List<Menfess>> {
 final menfessProvider =
     StateNotifierProvider<MenfessNotifier, List<Menfess>>((ref) {
   final repo = ref.watch(repositoryProvider);
-  final appRepo = ref.watch(appRepositoryProvider);
-  return MenfessNotifier(repo.menfessList, appRepo);
+  final firebaseRepo = ref.watch(firebaseRepositoryProvider);
+  return MenfessNotifier(repo.menfessList, firebaseRepo);
 });
 
 class DispositionNotifier extends StateNotifier<List<Disposition>> {
-  final AppRepository _repo;
+  final FirebaseRepository _firebaseRepo;
+  StreamSubscription<List<Disposition>>? _subscription;
 
-  DispositionNotifier(super.initial, this._repo) {
-    _initFromDb();
+  DispositionNotifier(super.initial, this._firebaseRepo) {
+  if (_firebaseRepo.isReady) {
+    _subscription = _firebaseRepo.getDispositionsStream().listen((list) {
+      state = list;
+    });
+  }
+}
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 
-  Future<void> _initFromDb() async {
-    try {
-      final list = await _repo.getDispositions();
-      if (list.isNotEmpty) {
-        state = list;
-      }
-    } catch (_) {}
-  }
-
-  void markResolved(String id) {
+  Future<void> markResolved(String id) async {
     state = [
       for (final d in state)
         if (d.id == id) d.copyWith(status: 'Selesai', isOverdue: false) else d
     ];
-    _repo.markDispositionResolved(id);
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.resolveDisposition(id);
+    }
   }
 
-  void sendReminder(String id) {
+  Future<void> sendReminder(String id) async {
     state = [
       for (final d in state)
         if (d.id == id)
@@ -487,96 +630,99 @@ class DispositionNotifier extends StateNotifier<List<Disposition>> {
         else
           d
     ];
-    _repo.sendDispositionReminder(id);
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.sendDispositionReminder(id);
+    }
   }
 }
 
 final dispositionProvider =
     StateNotifierProvider<DispositionNotifier, List<Disposition>>((ref) {
   final repo = ref.watch(repositoryProvider);
-  final appRepo = ref.watch(appRepositoryProvider);
-  return DispositionNotifier(repo.dispositions, appRepo);
+  final firebaseRepo = ref.watch(firebaseRepositoryProvider);
+  return DispositionNotifier(repo.dispositions, firebaseRepo);
 });
 
+
 class InstagramNotifier extends StateNotifier<List<InstagramPost>> {
-  final AppRepository _repo;
+  final FirebaseRepository _firebaseRepo;
+  StreamSubscription<List<InstagramPost>>? _subscription;
 
-  InstagramNotifier(super.initial, this._repo) {
-    _initFromDb();
-  }
-
-  Future<void> _initFromDb() async {
-    try {
-      final list = await _repo.getInstagramPosts();
-      if (list.isNotEmpty) {
+  InstagramNotifier(super.initial, this._firebaseRepo) {
+    if (_firebaseRepo.isReady) {
+      _subscription =
+          _firebaseRepo.getInstagramQueueStream().listen((list) {
         state = list;
-      }
-    } catch (_) {}
+      });
+    }
   }
 
-  void toggleAutoPublish(String id) {
-    bool? newAuto;
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  // Toggle Auto Publish
+  Future<void> toggleAutoPublish(String id) async {
+    final index = state.indexWhere((post) => post.id == id);
+
+    if (index == -1) return;
+
+    final current = state[index];
+
     state = [
       for (final post in state)
-        if (post.id == id) () {
-          final val = !post.autoPublish;
-          newAuto = val;
-          return post.copyWith(autoPublish: val);
-        }()
+        if (post.id == id)
+          post.copyWith(autoPublish: !post.autoPublish)
         else
-          post
+          post,
     ];
-    if (newAuto != null) {
-      _repo.toggleInstagramAutoPublish(id, newAuto!);
+
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.toggleInstagramAutoPublish(
+        id,
+        current.autoPublish,
+      );
     }
   }
 
-  void deletePost(String id) {
-    state = state.where((p) => p.id != id).toList();
+  // Generate Instagram Batch
+  Future<void> generateBatch(List<Menfess> allMenfess) async {
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.generateInstagramBatch(allMenfess);
+    }
   }
 
-  void updateCaption(String id, String newCaption) {
+  // Update Caption
+  Future<void> updateCaption(String id, String caption) async {
     state = [
       for (final post in state)
-        if (post.id == id) post.copyWith(caption: newCaption) else post
+        if (post.id == id)
+          post.copyWith(caption: caption)
+        else
+          post,
     ];
+
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.updateInstagramCaption(id, caption);
+    }
   }
 
-  void generateBatch(List<Menfess> approvedMenfess) {
-    final candidates = approvedMenfess
-        .where((m) => m.allowInstagram && !state.any((p) => p.menfessId == m.id))
-        .toList();
-    if (candidates.isEmpty) return;
+  // Delete Instagram Post
+  Future<void> deletePost(String id) async {
+    state = state.where((post) => post.id != id).toList();
 
-    final newPosts = <InstagramPost>[];
-    for (var i = 0;
-        i < candidates.length && state.length + newPosts.length < 8;
-        i++) {
-      final m = candidates[i];
-      final num = 85 + state.length + newPosts.length;
-      final post = InstagramPost(
-        id: 'ig_${DateTime.now().millisecondsSinceEpoch}_$i',
-        scheduleNumber: '#$num',
-        menfessId: m.id,
-        scheduledTimeText: 'Hari ini, ${17 + i}:00 WIB',
-        format: 'Single Post',
-        quoteText:
-            m.body.length > 80 ? '${m.body.substring(0, 80)}...' : m.body,
-        caption: '${m.body}\n\n#SuaraKampus #AspirasiMahasiswa',
-        facultyTag: m.category.label,
-        autoPublish: true,
-        status: 'Terjadwal',
-      );
-      newPosts.add(post);
-      _repo.addInstagramPost(post);
+    if (_firebaseRepo.isReady) {
+      await _firebaseRepo.deleteInstagramPost(id);
     }
-    state = [...state, ...newPosts];
   }
 }
+
 
 final instagramProvider =
     StateNotifierProvider<InstagramNotifier, List<InstagramPost>>((ref) {
   final repo = ref.watch(repositoryProvider);
-  final appRepo = ref.watch(appRepositoryProvider);
-  return InstagramNotifier(repo.instagramQueue, appRepo);
+  final firebaseRepo = ref.watch(firebaseRepositoryProvider);
+  return InstagramNotifier(repo.instagramQueue, firebaseRepo);
 });

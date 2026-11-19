@@ -26,7 +26,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
 
   Future<void> _refresh() async {
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 600));
+    await ref.read(menfessProvider.notifier).fetchFromDatabase();
     if (mounted) {
       setState(() => _isLoading = false);
     }
